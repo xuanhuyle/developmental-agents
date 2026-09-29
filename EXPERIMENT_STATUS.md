@@ -131,3 +131,10 @@ adequacy) ran before any LLM run, and a skeptic re-verified every finding. Resul
 
 - Implementation and LLM-free verification complete. No pilot or main run yet: no API credentials were available.
 - Adversarial code review completed; all 39 findings addressed, tests grown from 53 to 80, provisional freeze redone.
+- 2026-09-29, live-run session: **blocked, no live call made.** This session was started to run the pilot, freeze
+  and main run, but `ANTHROPIC_API_KEY` was **not set** in its environment (presence check only; the value was never
+  read). Done offline: working tree clean at 32ac404; `anthropic` SDK 1.9.0 installed; `pytest -q` → 80 passed.
+  Not done: the smoke call, pilot, non-provisional freeze, main run and report. No LLM output exists; nothing was
+  fabricated; no constant, prompt, task or criterion changed. To unblock: add `ANTHROPIC_API_KEY` as an environment
+  variable in the cloud environment's settings, then start a new session. Once the variable is present, the protocol
+  resumes at Step 1.
