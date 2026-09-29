@@ -13,7 +13,7 @@ from devagents.environment.tasks import TASKS_BY_ID
 from devagents.environment.world import SUPPLIERS
 from devagents.evals.calibrate import Assumptions, measure
 from devagents.runtime.resources import COMPUTE_OPTIONS, DEFAULT_COMPUTE, InsufficientFunds, Ledger, estimate_tokens, usd
-from devagents.runtime.runtime import Decision, ReserveViolation, Run, RunConfig
+from devagents.runtime.runtime import REQUEST_OVERHEAD_TOKENS, Decision, ReserveViolation, Run, RunConfig
 from tests.helpers import by_step, events_of, info, make_run, q, regime, spawn, term, wait
 
 REGION_DOCS = ["region-northland", "region-eastmarch", "region-southvale"]
@@ -260,6 +260,79 @@ def test_a_declared_bound_can_raise_the_reserve_but_never_lower_it():
     assert run.outcome == "answered"
     with pytest.raises(ReserveViolation):
         single_run(Declaring(0, lambda agent: 10_000_000)).execute()
+
+
+class ReserveSpy(ScriptedPolicy):
+    """Checks, at every decision, that the reserve covers the declared input and the offered max_tokens."""
+
+    def decide(self, agent, allowed, max_tokens, run):
+        c = run.cfg
+        per_out = c.compute.price_out + c.coord.message_per_token
+        base = self.input_upper_bound(agent, run) * c.compute.price_in + c.coord.message_fee
+        assert base + max_tokens * per_out <= run.ledger.balance[agent.id]
+        assert run.min_step_balance(agent) >= base + c.compute.min_step_tokens * per_out
+        return super().decide(agent, allowed, max_tokens, run)
+
+
+@pytest.mark.parametrize("scale", [1.0, 3.0, 4.0])
+def test_the_reserve_covers_the_declared_input_when_the_balance_is_tight(scale):
+    run = make_run(by_step({"A0": [q("region-northland")] * 30}), reg=regime(budget_usd=0.05), max_steps=100,
+                   input_scale=scale, policy=ReserveSpy)
+    run.execute()
+    assert run.outcome == "budget_exhausted"
+
+
+@pytest.mark.parametrize("scale", [2.5065, 3.0])
+def test_a_scripted_policy_declares_exactly_what_it_reports(scale):
+    seen = []
+
+    class Recorder(ScriptedPolicy):
+        def decide(self, agent, allowed, max_tokens, run):
+            declared = self.input_upper_bound(agent, run)
+            d = super().decide(agent, allowed, max_tokens, run)
+            seen.append((declared, d.in_tokens))
+            return d
+
+    make_run(long_read(), input_scale=scale, policy=Recorder).execute()
+    assert len(seen) == 2 and all(declared == reported for declared, reported in seen)
+
+
+class BoundaryClient:
+    """A fake Anthropic client that reports exactly the runtime's input bound (SPEC §3.3), recomputed from the request
+    alone, plus `excess` tokens on step `at`."""
+
+    def __init__(self, actions, excess=0, at=0):
+        self.actions, self.excess, self.at = actions, excess, at
+        self.prev = (0, 0)
+        self.messages = SimpleNamespace(create=self.create)
+
+    def create(self, **kw):
+        msgs = kw["messages"]
+        step = sum(m["role"] == "assistant" for m in msgs)
+        new_chars = len(msgs[-1]["content"])
+        if step == 0:
+            bound = math.ceil((len(kw["system"]) + new_chars) / 2) + REQUEST_OVERHEAD_TOKENS
+        else:
+            bound = sum(self.prev) + math.ceil(new_chars / 2) + REQUEST_OVERHEAD_TOKENS
+        in_tokens, out_tokens = bound + (self.excess if step == self.at else 0), 20
+        self.prev = (in_tokens, out_tokens)
+        usage = SimpleNamespace(input_tokens=in_tokens, output_tokens=out_tokens, cache_read_input_tokens=0,
+                                cache_creation_input_tokens=0)
+        return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(self.actions[step]))],
+                               usage=usage, stop_reason="end_turn")
+
+
+def test_the_live_reserve_is_exactly_the_runtime_bound():
+    """Pins the live bound itself: usage equal to it passes at every step, one token more raises."""
+    actions = [{"rationale": "think", "action": "WORK", "notes": "thinking"}, term()]
+    compute = COMPUTE_OPTIONS[DEFAULT_COMPUTE]
+    run = single_run(LLMPolicy(compute, client=BoundaryClient(actions)))
+    run.execute()
+    assert run.outcome == "answered"
+    assert len([e for e in events_of(run, "RESOURCE_CONSUMED") if e["kind"] == "llm"]) == 2
+    for at in (0, 1):
+        with pytest.raises(ReserveViolation):
+            single_run(LLMPolicy(compute, client=BoundaryClient(actions, excess=1, at=at))).execute()
 
 
 def test_the_live_llm_policy_keeps_the_runtime_bound():

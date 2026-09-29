@@ -137,7 +137,10 @@ in order, are **COMPLETE < EXPIRE < DELIVER < WAKE < START**.
    - A policy may declare its own input bound for a step, and the reserve then uses the larger of
      the two, so a declaration can raise the reserve but never lower it. The calibration oracle
      declares exactly the input it is priced at (§7.1), which the 1-token-per-2-characters bound
-     does not cover when r > 2. The live LLM policy declares none (§11 item 16).
+     does not cover when r > 2. The live LLM policy declares none (§11 item 16). The status
+     block's "next step needs" figure is computed before the new observation is appended, so for
+     a declaring policy it can understate that step's reserve; the reserve itself is always the
+     one applied at the step.
    - **The rule is disclosed.** The shared system prompt states the output cap, the reserve rule,
      and the approximate cost of a new agent's first step. Every status block shows the balance
      the agent's next step needs.

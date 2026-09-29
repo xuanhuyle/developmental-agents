@@ -34,7 +34,7 @@ Append-only. Newest entries at the bottom of the log.
 
 ## Tested (all without network)
 
-Run `pytest -q`: 94 tests, all passing at the time of writing. They cover:
+Run `pytest -q`: 100 tests, all passing at the time of writing. They cover:
 
 - **Accounting.** Conservation replayed from the log after every event. Spawning cannot create money. An allocation
   moves exactly from parent to child, and the spawn fee formula holds. Refunds equal the child's final balance.
@@ -42,7 +42,7 @@ Run `pytest -q`: 94 tests, all passing at the time of writing. They cover:
   `budget_exhausted` without overdraft. A policy that misreports usage raises `ReserveViolation`. Reports are charged
   to the sender. A policy-declared input bound raises the reserve but never lowers it. A scripted policy at r > 2 stays
   within its reserve, but usage above a declared bound still raises `ReserveViolation`. The live `LLMPolicy` keeps the
-  runtime's bound. The invariants also hold at r = 3, where the declared bound binds.
+  runtime's bound, pinned exactly at every step. The invariants also hold at r = 3, where the declared bound binds.
 - **Lifecycle.**
   - Division trades money for time.
   - Multi-source query latencies add up.
@@ -146,7 +146,9 @@ adequacy) ran before any LLM run, and a skeptic re-verified every finding. Resul
   - **`freeze --pilot results/pilot` crashed** with `ReserveViolation: A0: realized step (in=12230, out=41) exceeds the
     reserve (in<=11435, out<=2048)`. This was an infrastructure/accounting bug in the calibration oracle at the grid
     point r = 2.5065. It is fixed as SPEC §11 item 16: a policy may declare its own input bound, and the larger bound
-    is reserved. The live reserve is unchanged, and the tests grew from 80 to 94.
+    is reserved. The live reserve is unchanged. An adversarial review (4 lenses, each finding re-verified) found no
+    defect in the fix and three minor test/doc gaps, now closed: the live bound is pinned exactly, the oracle's
+    declaration is pinned exactly, and a tight-balance reserve check was added. Tests grew from 80 to 100.
   - **The freeze then completes, but no candidate passes the gate.** Here it was rerun with the reported statistics
     injected in place of `pilot_stats`, because the logs are absent; every value that `freeze` reads is already rounded
     or clamped, so the result is the same. The output is `{"ok": false, "attempts": []}` with exit code 1.

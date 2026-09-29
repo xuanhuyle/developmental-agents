@@ -351,7 +351,8 @@ class Run:
         return in_upper * self.cfg.compute.price_in + self.cfg.coord.message_fee
 
     def min_step_balance(self, a: Agent) -> int:
-        """Smallest balance that lets `a` take its next step (shown to the agent in every status block)."""
+        """Smallest balance that lets `a` take its next step (shown to the agent in every status block). It is computed
+        before the new user turn is appended, so a policy-declared bound can make the actual reserve higher."""
         c = self.cfg
         return self._reserve_base(self._input_upper_bound(a)) + c.compute.min_step_tokens * (
             c.compute.price_out + c.coord.message_per_token)
