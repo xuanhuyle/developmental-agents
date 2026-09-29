@@ -134,6 +134,10 @@ in order, are **COMPLETE < EXPIRE < DELIVER < WAKE < START**.
      calibration oracle), which covers the injected output schema. On the first step `in_upper`
      is 1 token per 2 characters of the system prompt and first observation, plus the same
      overhead.
+   - A policy may declare its own input bound for a step, and the reserve then uses the larger of
+     the two, so a declaration can raise the reserve but never lower it. The calibration oracle
+     declares exactly the input it is priced at (§7.1), which the 1-token-per-2-characters bound
+     does not cover when r > 2. The live LLM policy declares none (§11 item 16).
    - **The rule is disclosed.** The shared system prompt states the output cap, the reserve rule,
      and the approximate cost of a new agent's first step. Every status block shows the balance
      the agent's next step needs.
@@ -563,6 +567,18 @@ agreement between the developmental organization and the calibrated labels.
 
     The disclosure of the reserve rule lengthened the prompt, so the calibration changed and the
     provisional freeze was redone.
+
+16. **Infrastructure fix at the first pilot freeze: the oracle declares its input bound.** With the
+    pilot's r = 2.0052, `freeze --pilot` raised `ReserveViolation` at the grid point
+    r = 1.25 × 2.0052 = 2.5065. The oracle is priced at estimator tokens × r (§7.1), but the §3.3
+    bound allows 1 token per 2 new characters, which is about r ≤ 2. On T01's solo read that is
+    8,302 tokens against 6,623 allowed, beyond the 1,000-token overhead. The runtime now reserves
+    the larger of its bound and a bound the policy declares (§3.3). `ScriptedPolicy` declares
+    exactly the input it will report, and `LLMPolicy` declares none, so the live reserve is
+    unchanged. Over the full grids for base r = 1 and for the pilot's base, all 8,752 oracle runs
+    that the previous code completed have identical simulated metrics. The 464 runs it aborted,
+    all at r = 2.5065, now complete. No prompt, task, constant, label rule, gate, criterion or
+    fitness rule changed.
 
 **Change log** (constants and freeze):
 

@@ -163,6 +163,10 @@ class Decision:
 
 
 class Policy(Protocol):
+    """Chooses the next action for one agent. A policy may also define `input_upper_bound(agent, run) -> int`, a
+    bound on the input tokens its next `decide` will report. The runtime reserves the larger of that and its own
+    bound, so a policy can raise the step reserve but never lower it."""
+
     def decide(self, agent: Agent, allowed: list[str], max_tokens: int, run: "Run") -> Decision: ...
 
 
@@ -354,12 +358,16 @@ class Run:
 
     def _input_upper_bound(self, a: Agent) -> int:
         """Upper bound on this step's input tokens: the exact previous usage, plus at most 1 token per 2 new
-        characters, plus the policy's fixed request overhead (for example an injected output schema). The step
-        reserve therefore always covers the realized cost."""
+        characters, plus the fixed request overhead (for example an injected output schema). A policy whose token
+        model can exceed this (a scripted policy with input_scale > 2) declares its own bound, and the larger one
+        is used. The step reserve therefore always covers the realized cost."""
         overhead = REQUEST_OVERHEAD_TOKENS
         if a.prev_in_tokens:
-            return a.prev_in_tokens + a.prev_out_tokens + math.ceil(a.new_chars / 2) + overhead
-        return math.ceil((len(a.system) + a.new_chars) / 2) + overhead
+            bound = a.prev_in_tokens + a.prev_out_tokens + math.ceil(a.new_chars / 2) + overhead
+        else:
+            bound = math.ceil((len(a.system) + a.new_chars) / 2) + overhead
+        declared = getattr(self.policy, "input_upper_bound", None)
+        return bound if declared is None else max(bound, declared(a, self))
 
     # ------------------------------------------------------------------ validation
 

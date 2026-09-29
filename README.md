@@ -57,7 +57,7 @@ and an `ANTHROPIC_API_KEY`. The tests need `pytest`.
 ```bash
 python -m devagents calibrate        # the environment's designed economics and the validity gate (~5 s)
 python -m devagents criteria-check   # can the §8 criteria pass for an ideal policy and fail for collapses? picks R (~1 min)
-pytest -q                            # 80 tests: accounting, lifecycle, baselines, ground truth, evaluator, pipeline
+pytest -q                            # 94 tests: accounting, lifecycle, baselines, ground truth, evaluator, pipeline
 ```
 
 **The real experiment** follows the pre-registered protocol (SPEC §7.4):

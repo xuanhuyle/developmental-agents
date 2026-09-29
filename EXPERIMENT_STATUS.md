@@ -34,13 +34,15 @@ Append-only. Newest entries at the bottom of the log.
 
 ## Tested (all without network)
 
-Run `pytest -q`: 80 tests, all passing at the time of writing. They cover:
+Run `pytest -q`: 94 tests, all passing at the time of writing. They cover:
 
 - **Accounting.** Conservation replayed from the log after every event. Spawning cannot create money. An allocation
   moves exactly from parent to child, and the spawn fee formula holds. Refunds equal the child's final balance.
   Unaffordable spawns are rejected whole. Every charge can be recomputed from the log. A small budget ends in
   `budget_exhausted` without overdraft. A policy that misreports usage raises `ReserveViolation`. Reports are charged
-  to the sender.
+  to the sender. A policy-declared input bound raises the reserve but never lowers it. A scripted policy at r > 2 stays
+  within its reserve, but usage above a declared bound still raises `ReserveViolation`. The live `LLMPolicy` keeps the
+  runtime's bound. The invariants also hold at r = 3, where the declared bound binds.
 - **Lifecycle.**
   - Division trades money for time.
   - Multi-source query latencies add up.
@@ -138,3 +140,23 @@ adequacy) ran before any LLM run, and a skeptic re-verified every finding. Resul
   fabricated; no constant, prompt, task or criterion changed. To unblock: add `ANTHROPIC_API_KEY` as an environment
   variable in the cloud environment's settings, then start a new session. Once the variable is present, the protocol
   resumes at Step 1.
+- 2026-09-29, **pilot completed outside this repository** by the user, who reported these `pilot_stats`: 24 runs,
+  80 LLM calls, r = 2.0052, 36 reasoning tokens, p90 output 203, `single` p95 elapsed 344.0196 s, `single` accuracy 1.0
+  in every class, cost CV 0.008. The pilot logs (`results/pilot/`) are not in this repository.
+  - **`freeze --pilot results/pilot` crashed** with `ReserveViolation: A0: realized step (in=12230, out=41) exceeds the
+    reserve (in<=11435, out<=2048)`. This was an infrastructure/accounting bug in the calibration oracle at the grid
+    point r = 2.5065. It is fixed as SPEC §11 item 16: a policy may declare its own input bound, and the larger bound
+    is reserved. The live reserve is unchanged, and the tests grew from 80 to 94.
+  - **The freeze then completes, but no candidate passes the gate.** Here it was rerun with the reported statistics
+    injected in place of `pilot_stats`, because the logs are absent; every value that `freeze` reads is already rounded
+    or clamped, so the result is the same. The output is `{"ok": false, "attempts": []}` with exit code 1.
+    - **What fails, in all 343 mechanical-repair candidates** (cells listed for the unrepaired candidate):
+      - gate (d): best fitness is below 0.5 in the urgent cells T01, T04, T07, T10, T09, T12 and T15, and `solo`
+        fitness is below 0.3 in T04 and T10 urgent;
+      - gate (f): `atstart8` starves children under the fixed allocation rule on T03 and T09, at the base point.
+    - **What some candidates repair:** (b), T01, T04, T07 and T10 urgent being ambiguous rather than P, and (e), empty
+      P_urgent and twin sets. 322 candidates fail only (d) and (f).
+    - **Not caused by the fix:** the base-point oracle results are identical with and without it.
+  - **No non-provisional freeze exists.** `data/frozen.json` is still the provisional 910bf202…dbb6f9, and the main run
+    was not started. Under SPEC §8 validity (i), the gate must hold. No constant, prompt, task, criterion or scoring
+    rule was changed to make it pass.

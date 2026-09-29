@@ -1,14 +1,26 @@
 """Resource accounting invariants (SPEC §3.3): nothing creates money, every charge is accounted for, and
 allocation and refunds move money exactly."""
 
+import json
+import math
+from types import SimpleNamespace
+
 import pytest
 
-from devagents.runtime.resources import InsufficientFunds, Ledger, estimate_tokens, usd
-from devagents.runtime.runtime import ReserveViolation
+from devagents.agents.policies import LLMPolicy, ScriptedPolicy, transcript_tokens
+from devagents.config import default_constants
+from devagents.environment.tasks import TASKS_BY_ID
 from devagents.environment.world import SUPPLIERS
-from tests.helpers import by_step, events_of, make_run, q, spawn, term, wait
+from devagents.evals.calibrate import Assumptions, measure
+from devagents.runtime.resources import COMPUTE_OPTIONS, DEFAULT_COMPUTE, InsufficientFunds, Ledger, estimate_tokens, usd
+from devagents.runtime.runtime import Decision, ReserveViolation, Run, RunConfig
+from tests.helpers import by_step, events_of, info, make_run, q, regime, spawn, term, wait
 
 REGION_DOCS = ["region-northland", "region-eastmarch", "region-southvale"]
+# The invariants are checked where the runtime's own input bound binds (r = 1) and where a scripted policy's declared
+# bound binds (r = 3, whose children need a larger allocation to take a step).
+SCALES = [1.0, 3.0]
+ALLOC = {1.0: 0.05, 3.0: 0.1}
 
 
 def replay_balances(events, budget):
@@ -63,8 +75,9 @@ def fanout_script(alloc=0.05):
     })
 
 
-def test_spawning_cannot_create_money():
-    run = make_run(fanout_script())
+@pytest.mark.parametrize("scale", SCALES)
+def test_spawning_cannot_create_money(scale):
+    run = make_run(fanout_script(ALLOC[scale]), input_scale=scale)
     run.execute()
     budget = run.ledger.budget
     bal, spent = replay_balances(run.log.events, budget)
@@ -73,12 +86,13 @@ def test_spawning_cannot_create_money():
     assert bal == run.ledger.balance  # the log alone reproduces the ledger
 
 
-def test_allocation_moves_exactly_from_parent_to_child():
-    run = make_run(fanout_script(alloc=0.05))
+@pytest.mark.parametrize("scale", SCALES)
+def test_allocation_moves_exactly_from_parent_to_child(scale):
+    run = make_run(fanout_script(ALLOC[scale]), input_scale=scale)
     run.execute()
     spawned = events_of(run, "AGENT_SPAWNED")
     allocs = [e for e in events_of(run, "RESOURCE_ALLOCATED") if e["kind"] == "allocation"]
-    assert [e["amount"] for e in allocs] == [usd(0.05)] * 3
+    assert [e["amount"] for e in allocs] == [usd(ALLOC[scale])] * 3
     assert all(a["source"] == "A0" and a["target"] == s["child"] for a, s in zip(allocs, spawned))
     # The parent pays each child's fee: spawn_fee + transfer price × (objective + context tokens).
     coord = run.cfg.coord
@@ -86,8 +100,9 @@ def test_allocation_moves_exactly_from_parent_to_child():
         assert s["fee"] == coord.spawn_fee + coord.transfer_per_token * s["context_tokens"]
 
 
-def test_termination_refunds_the_unused_balance_to_the_parent():
-    run = make_run(fanout_script())
+@pytest.mark.parametrize("scale", SCALES)
+def test_termination_refunds_the_unused_balance_to_the_parent(scale):
+    run = make_run(fanout_script(ALLOC[scale]), input_scale=scale)
     run.execute()
     for t in events_of(run, "AGENT_TERMINATED"):
         if t["agent"] == "A0":
@@ -109,8 +124,9 @@ def test_unaffordable_spawn_is_rejected_whole():
     assert kinds == {"llm"}  # only the decision steps were charged
 
 
-def test_every_charge_is_recomputable_from_the_log():
-    run = make_run(fanout_script())
+@pytest.mark.parametrize("scale", SCALES)
+def test_every_charge_is_recomputable_from_the_log(scale):
+    run = make_run(fanout_script(ALLOC[scale]), input_scale=scale)
     run.execute()
     cfg, info = run.cfg, run.info
     for e in events_of(run, "RESOURCE_CONSUMED"):
@@ -128,9 +144,10 @@ def test_every_charge_is_recomputable_from_the_log():
     assert total == run.ledger.total_spent == events_of(run, "RUN_COMPLETED")[0]["total_spent"]
 
 
-def test_a_step_never_overdraws_and_a_small_budget_ends_in_budget_exhausted():
-    from tests.helpers import regime
-    run = make_run(by_step({"A0": [q("region-northland")] * 30}), reg=regime(budget_usd=0.05), max_steps=100)
+@pytest.mark.parametrize("scale", SCALES)
+def test_a_step_never_overdraws_and_a_small_budget_ends_in_budget_exhausted(scale):
+    run = make_run(by_step({"A0": [q("region-northland")] * 30}), reg=regime(budget_usd=0.05), max_steps=100,
+                   input_scale=scale)
     run.execute()
     assert run.outcome == "budget_exhausted"
     assert run.ledger.total_spent <= run.ledger.budget
@@ -140,11 +157,7 @@ def test_a_step_never_overdraws_and_a_small_budget_ends_in_budget_exhausted():
 def test_a_policy_reporting_more_input_than_the_bound_is_an_infrastructure_error():
     class Liar:
         def decide(self, agent, allowed, max_tokens, run):
-            from devagents.runtime.runtime import Decision
             return Decision(term(), in_tokens=10_000_000, out_tokens=10, assistant_content="{}")
-    from devagents.runtime.runtime import Run, RunConfig
-    from devagents.environment.tasks import TASKS_BY_ID
-    from tests.helpers import info, regime
     with pytest.raises(ReserveViolation):
         Run(RunConfig(TASKS_BY_ID["T02"], regime(), "single"), Liar(), info()).execute()
 
@@ -158,3 +171,106 @@ def test_child_messages_and_reports_are_charged_to_the_sender():
     charged = [e for e in events_of(run, "RESOURCE_CONSUMED") if e["kind"] == "message" and e["agent"] == "A0.1"]
     assert report["fee"] == charged[0]["amount"] == run.cfg.coord.message_fee + run.cfg.coord.message_per_token * report["tokens"]
     assert report["tokens"] == estimate_tokens(("report text " * 20).strip())
+
+
+# --------------------------------------------------------------------------- policy-declared input bounds (SPEC §3.3)
+
+T01_DOCS = list(TASKS_BY_ID["T01"].routes[0].docs)  # about 12,700 characters in one QUERY result
+
+
+def long_read():
+    return by_step({"A0": [q(*T01_DOCS), term("Westreach")]})
+
+
+class Undeclared(ScriptedPolicy):
+    """The same token model without a declared input bound: only the runtime's own bound is reserved."""
+    input_upper_bound = None
+
+
+class Declaring:
+    """Declares a fixed input bound and reports `reported(agent)` input tokens."""
+
+    def __init__(self, declared, reported):
+        self.declared, self.reported = declared, reported
+
+    def input_upper_bound(self, agent, run):
+        return self.declared
+
+    def decide(self, agent, allowed, max_tokens, run):
+        return Decision(term(), self.reported(agent), 10, "{}")
+
+
+def single_run(policy):
+    return Run(RunConfig(TASKS_BY_ID["T02"], regime(), "single"), policy, info())
+
+
+def comparable(events):
+    """A log's simulation content: without wall-clock stamps and the policy's class name."""
+    out = []
+    for e in events:
+        e = {k: v for k, v in e.items() if k != "wall"}
+        if e["type"] == "RUN_STARTED":
+            e["policy"] = {k: v for k, v in e["policy"].items() if k != "class"}
+        out.append(e)
+    return out
+
+
+@pytest.mark.parametrize("scale", [2.5065, 3.0, 4.0])
+def test_a_scripted_policy_above_two_tokens_per_estimator_token_stays_within_its_reserve(scale):
+    run = make_run(long_read(), input_scale=scale)
+    run.execute()
+    assert run.outcome == "answered"
+    llm = [e for e in events_of(run, "RESOURCE_CONSUMED") if e["kind"] == "llm"]
+    assert len(llm) == 2 and all(e["in_tokens"] == math.ceil(e["est_in_tokens"] * scale) for e in llm)
+    # The same run exceeds the runtime's own 1-token-per-2-characters bound, so the declaration is what covers it.
+    with pytest.raises(ReserveViolation):
+        make_run(long_read(), input_scale=scale, policy=Undeclared).execute()
+
+
+def test_the_calibration_oracle_runs_at_the_grid_point_that_broke_the_pilot_freeze():
+    """`freeze --pilot` (r = 2.0052, 36 reasoning tokens) raised ReserveViolation on T01's solo read at the grid point
+    r = 1.25 x 2.0052 = 2.5065."""
+    meas = measure(default_constants(), Assumptions(input_scale=2.0052, reasoning_tokens=36), tasks=[TASKS_BY_ID["T01"]])
+    assert Assumptions(2.5065, 18, 0) in [Assumptions(**p) for p in meas["points"]]
+    solo = [m for (_, _, org, _), m in meas["data"].items() if org == "solo@r0"]
+    assert len(solo) == 36 and all(m["outcome"] == "answered" and not m["invalid_actions"] for m in solo)
+
+
+@pytest.mark.parametrize("scale", [1.0, 2.0052])
+def test_where_the_runtime_bound_already_covers_the_scripted_input_nothing_changes(scale):
+    """The declaration binds only above the runtime's bound, so earlier calibrations are reproduced exactly."""
+    a = make_run(fanout_script(), input_scale=scale)
+    a.execute()
+    b = make_run(fanout_script(), input_scale=scale, policy=Undeclared)
+    b.execute()
+    assert comparable(a.log.events) == comparable(b.log.events)
+
+
+def test_usage_above_a_declared_bound_is_still_a_reserve_violation():
+    run = single_run(Declaring(50_000, lambda agent: 50_000))
+    run.execute()
+    assert run.outcome == "answered"
+    with pytest.raises(ReserveViolation, match=r"in=50001.*in<=50000"):
+        single_run(Declaring(50_000, lambda agent: 50_001)).execute()
+
+
+def test_a_declared_bound_can_raise_the_reserve_but_never_lower_it():
+    run = single_run(Declaring(0, transcript_tokens))  # declares 0, reports its estimator count: still covered
+    run.execute()
+    assert run.outcome == "answered"
+    with pytest.raises(ReserveViolation):
+        single_run(Declaring(0, lambda agent: 10_000_000)).execute()
+
+
+def test_the_live_llm_policy_keeps_the_runtime_bound():
+    """LLMPolicy declares no bound, so a live step is reserved exactly as before, and API usage above that reserve is
+    an infrastructure error."""
+    usage = SimpleNamespace(input_tokens=10_000_000, output_tokens=10, cache_read_input_tokens=0,
+                            cache_creation_input_tokens=0)
+    reply = SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(term()))], usage=usage,
+                            stop_reason="end_turn")
+    client = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: reply))
+    policy = LLMPolicy(COMPUTE_OPTIONS[DEFAULT_COMPUTE], client=client)
+    assert getattr(policy, "input_upper_bound", None) is None
+    with pytest.raises(ReserveViolation):
+        single_run(policy).execute()

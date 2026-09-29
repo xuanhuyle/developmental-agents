@@ -21,9 +21,10 @@ def regime(name="urgent", **changes):
     return replace(REGIMES[name], **changes)
 
 
-def make_run(script, task="T01", mode="developmental", reg=None, reasoning=50, **cfg):
+def make_run(script, task="T01", mode="developmental", reg=None, reasoning=50, input_scale=1.0, policy=ScriptedPolicy,
+             **cfg):
     config = RunConfig(TASKS_BY_ID[task], reg or regime(), mode, **cfg)
-    return Run(config, ScriptedPolicy(script, reasoning_tokens=reasoning), info())
+    return Run(config, policy(script, reasoning_tokens=reasoning, input_scale=input_scale), info())
 
 
 def by_step(plans: dict):

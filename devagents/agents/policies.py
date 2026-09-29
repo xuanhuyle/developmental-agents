@@ -3,8 +3,9 @@
 - `LLMPolicy`: the experimental policy. It makes one Anthropic Messages API call per step,
   with a JSON-schema structured output. Money and latency come from the API-reported usage.
 - `ScriptedPolicy`: deterministic, for tests and LLM-free calibration. Input tokens are the
-  estimator count of exactly the text an LLM would read, multiplied by `input_scale`. Output
-  tokens are the JSON action's tokens plus `reasoning_tokens`.
+  estimator count of exactly the text an LLM would read, multiplied by `input_scale`, and the
+  policy declares that count as its input bound for the step reserve. Output tokens are the JSON
+  action's tokens plus `reasoning_tokens`.
 """
 
 from __future__ import annotations
@@ -110,11 +111,19 @@ class ScriptedPolicy:
         self.reasoning_tokens = reasoning_tokens
         self.input_scale = input_scale
 
+    def _input_tokens(self, agent: Agent) -> tuple[int, int]:
+        """(estimator count, reported input tokens) of the next call."""
+        est_in = transcript_tokens(agent)
+        return est_in, math.ceil(est_in * self.input_scale)
+
+    def input_upper_bound(self, agent: Agent, run: Run) -> int:
+        """Exactly the input `decide` will report for this step, so the step reserve covers it at any input_scale."""
+        return self._input_tokens(agent)[1]
+
     def decide(self, agent: Agent, allowed: list[str], max_tokens: int, run: Run) -> Decision:
         action = self.script(agent, run, allowed)
         text = json.dumps(action)
-        est_in = transcript_tokens(agent)
-        in_tokens = math.ceil(est_in * self.input_scale)
+        est_in, in_tokens = self._input_tokens(agent)
         out = estimate_tokens(text) + self.reasoning_tokens
         if out > max_tokens:
             return Decision(None, in_tokens, max_tokens, text, error="output truncated at max_tokens", truncated=True,
