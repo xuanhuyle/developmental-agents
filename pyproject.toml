@@ -1,0 +1,14 @@
+[project]
+name = "developmental-agents"
+version = "0.0.1"
+description = "Experiment 0: does a resource-aware agent divide only when division pays?"
+requires-python = ">=3.10"
+dependencies = []  # the core is standard library only
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.70"]  # only for the real experiment (pilot/run)
+dev = ["pytest>=7"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
