@@ -39,9 +39,9 @@ def q(*docs, sql=None):
     return {"rationale": "read", "action": "QUERY", "requests": reqs}
 
 
-def spawn(*children, wait=False):
+def spawn(*children, wait=False, context=""):
     return {"rationale": "divide", "action": "SPAWN", "wait_for_children": wait,
-            "children": [{"objective": o, "context": "", "budget_usd": b, "lifetime_s": l} for o, b, l in children]}
+            "children": [{"objective": o, "context": context, "budget_usd": b, "lifetime_s": l} for o, b, l in children]}
 
 
 def term(answer="x"):

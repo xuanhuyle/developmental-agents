@@ -165,11 +165,14 @@ def evaluate(records: list[dict], cells: dict, sets: dict, n_boot: int = N_BOOT,
     return {"criteria": crit, "verdict": "not supported" if fired else "supported", "fired": fired}
 
 
-def secondary_router(records: list[dict], cells: dict, n_boot: int = N_BOOT) -> dict:
-    """H2 (pre-registered, secondary): developmental − router over all cells, on fitness, cost and quality. It is
-    reported, and it never changes the §8 verdict (SPEC §8, §10)."""
+def secondary_router(records: list[dict], cells: dict, sets: dict, n_boot: int = N_BOOT) -> dict:
+    """H2 (pre-registered, secondary): developmental − router on fitness, cost and quality, over all cells and over
+    the I cells. It is reported, and it never changes the §8 verdict (SPEC §8, §10)."""
     runs = Runs(records, cells)
-    return {m: contrast_ci(runs, set(cells), "router", m, n_boot) for m in ("fitness", "neg_cost", "quality")}
+    metrics = ("fitness", "neg_cost", "quality")
+    i_cells = set(sets.get("I", [])) & set(cells)
+    return {"all": {m: contrast_ci(runs, set(cells), "router", m, n_boot) for m in metrics},
+            "I": {m: contrast_ci(runs, i_cells, "router", m, n_boot) for m in metrics}}
 
 
 def validity(records: list[dict], cells: dict, planned_per_mode: dict[str, int], repeats: int,
@@ -228,6 +231,8 @@ def _synthetic_policies(cells: dict, tasks_max_docs: dict[str, int]) -> dict:
         "RANDOM": lambda c, rng: "div" if rng.random() < 0.5 else "solo",
         "SPAWN_IFF_URGENT": lambda c, rng: "div" if c["regime"] == "urgent" else "solo",
         "SPAWN_IFF_MULTIDOC": lambda c, rng: "div" if tasks_max_docs[c["task"]] >= 4 else "solo",
+        # organizes correctly but wastes as much as a fixed decomposition where division does not pay (targets 4c, 5)
+        "WASTEFUL": lambda c, rng: "div" if c["div_fitness"] > c["solo_fitness"] else "wasteful",
     }
 
 
@@ -243,13 +248,16 @@ def synthetic_records(cells: dict, dev_policy, repeats: int, accuracy: dict[str,
             for rep in range(repeats):
                 org = {"developmental": dev_policy(c, rng), "single": "solo", "central": "router_div",
                        "router": "router_div" if c["router_div_fitness"] > c["solo_fitness"] else "solo"}[mode]
-                fit = {"solo": c["solo_fitness"], "div": c["div_fitness"], "router_div": c["router_div_fitness"]}[org]
-                par = {"solo": False, "div": c["div_parallel"], "router_div": c["router_div_parallel"]}[org]
+                fit = {"solo": c["solo_fitness"], "div": c["div_fitness"], "router_div": c["router_div_fitness"],
+                       "wasteful": c["router_div_fitness"]}[org]
+                par = {"solo": False, "div": c["div_parallel"], "router_div": c["router_div_parallel"],
+                       "wasteful": False}[org]
                 q = 1.0 if rng.random() < accuracy[c["task_class"]] else 0.0
                 f = q - (1.0 - fit) * max(0.0, rng.gauss(1.0, cost_cv))
                 out.append({"task_id": c["task"], "task_class": c["task_class"], "subtype": c["subtype"],
                             "regime": c["regime"], "mode": mode, "repeat": rep, "fitness": f, "quality": q,
-                            "outcome": "answered", "spawned": org != "solo", "parallel": par, "cap_hits": 0,
+                            "outcome": "answered", "spawned": org not in ("solo", "wasteful"), "parallel": par,
+                            "cap_hits": 0,
                             "coordination_usd": 0.0, "infra_error": False})
     return out
 

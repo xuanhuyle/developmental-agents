@@ -34,7 +34,7 @@ Append-only. Newest entries at the bottom of the log.
 
 ## Tested (all without network)
 
-Run `pytest -q`: 53 tests, all passing at the time of writing. They cover:
+Run `pytest -q`: 80 tests, all passing at the time of writing. They cover:
 
 - **Accounting.** Conservation replayed from the log after every event. Spawning cannot create money. An allocation
   moves exactly from parent to child, and the spawn fee formula holds. Refunds equal the child's final balance.
@@ -68,8 +68,25 @@ Run `pytest -q`: 53 tests, all passing at the time of writing. They cover:
   pipeline runs from runner to event logs to report (48 runs, 4 workers, resume). The pilot report and pilot
   statistics work.
 
+- **Review regressions** (`tests/test_review_regressions.py`): one test per confirmed code-review finding, plus
+  mutation-killing tests for rules that could previously be deleted without any test failing.
+
 LLM-free commands also exercised: `calibrate` (the gate passes), `criteria-check`, and `freeze` (which produced the
 provisional freeze below).
+
+## Code review
+
+A five-lens adversarial review (simulation and accounting, statistics, spec consistency, validity and API use, test
+adequacy) ran before any LLM run, and a skeptic re-verified every finding. Result: 38 findings CONFIRMED, 1 PLAUSIBLE,
+0 refuted. All were fixed or covered by tests; SPEC.md §11 item 15 lists them. The most consequential:
+
+- the 20-step cap could be bypassed after a WAIT;
+- concurrent SPAWNs could exceed the concurrency and agent caps;
+- the pilot cost-variance estimate was biased low by about half, which would under-power R;
+- reports counted stray runs outside the manifest;
+- `verify_frozen` missed drift in calibrated values;
+- the output schema broke prompt parity across modes;
+- agents were never told the step-reserve rule.
 
 ## Not yet tested
 
@@ -87,6 +104,8 @@ provisional freeze below).
   ambiguous across the perturbation grid.
 - **Provisional constants.** They are tuned only against oracle assumptions: 150 reasoning tokens per step and r = 1.
   If the pilot measures values far from these, mechanical repair may move them further.
+- **R = 3 is borderline.** The ideal policy is "supported" in about 82% of simulations against the 80% bar, at the
+  default p = 0.9 and cv = 0.25. The pilot's measured accuracy and cost variance will likely raise R.
 - **Declared model.** The latency model is declared, not measured. There is no prompt caching. There is one model and
   one prompt wording.
 - **Conservative input bound.** The step reserve uses a 1000-token schema overhead and a bound of 1 token per 2
@@ -105,8 +124,10 @@ provisional freeze below).
 
 | date | kind | sha256 of data/frozen.json | R | notes |
 |---|---|---|---|---|
-| (initial commit) | PROVISIONAL (no pilot) | see `sha256sum data/frozen.json` in the initial commit | 3 | gate passed with no repair steps; p = 0.9 and cv = 0.25 are defaults. `run` refuses this freeze |
+| (initial commit) | PROVISIONAL (no pilot) | a39cf404…9544f6 | 3 | gate passed with no repair steps; p = 0.9 and cv = 0.25 are defaults. Superseded |
+| after code review | PROVISIONAL (no pilot) | 910bf202…dbb6f9 | 3 | the reserve disclosure lengthened the prompt; mechanical repair took 1 step (doc processing 0.100 → 0.105 s/token). `run` refuses this freeze |
 
 ## Log
 
 - Implementation and LLM-free verification complete. No pilot or main run yet: no API credentials were available.
+- Adversarial code review completed; all 39 findings addressed, tests grown from 53 to 80, provisional freeze redone.

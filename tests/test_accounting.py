@@ -118,6 +118,9 @@ def test_every_charge_is_recomputable_from_the_log():
             assert e["amount"] == cfg.compute.step_cost(e["in_tokens"], e["out_tokens"])
         elif e["kind"] == "query":
             assert e["amount"] == (info.costs.sql_fee if e["source"] == "sql" else info.costs.doc_fee)
+        elif e["kind"] == "spawn":
+            fees = {s["fee"] for s in events_of(run, "AGENT_SPAWNED") if s["agent"] == e["agent"]}
+            assert e["amount"] in fees
         elif e["kind"] == "message":
             sent = [m for m in events_of(run, "MESSAGE_SENT") if m["agent"] == e["agent"]]
             assert e["amount"] in {cfg.coord.message_fee + cfg.coord.message_per_token * m["tokens"] for m in sent}

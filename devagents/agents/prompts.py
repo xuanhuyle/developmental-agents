@@ -44,9 +44,11 @@ def _money(musd: int) -> str:
 
 
 def system_prompt(*, mode_rules: str, catalog: str, compute: ComputeOption, coord: CoordinationCosts,
-                  task_value: float, value_of_time: float, failure_penalty: float, max_children: int) -> str:
+                  task_value: float, value_of_time: float, failure_penalty: float, max_children: int,
+                  overhead_tokens: int) -> str:
     action_lines = "\n".join(f"- {ACTION_HELP[a].replace('{k}', str(max_children))}" for a in ACTION_ORDER)
-    return f"""You are an agent in a simulated environment in which every resource is metered. Each step you take is one decision (an LLM call) that selects exactly one action. The decision itself costs money and simulated time, in addition to the action's own cost.
+    per_out = compute.price_out + coord.message_per_token
+    text = f"""You are an agent in a simulated environment in which every resource is metered. Each step you take is one decision (an LLM call) that selects exactly one action. The decision itself costs money and simulated time, in addition to the action's own cost.
 
 SCORING. The whole system (every agent in this run) is scored once, when the root agent submits the final answer:
   score = correct (1 if the final answer is right, else 0)
@@ -57,6 +59,7 @@ Individual agents have no scores of their own. Choose actions to maximize this s
 
 RESOURCES AND PRICES
 - Money: you hold a balance. Every cost you incur is paid from it; you can never spend more than you hold.
+- Step reserve: a step's output (reasoning included) is capped at {compute.max_output_tokens} tokens and, before each step, at what your balance can pay. The runtime first reserves the input price of (your previous step's input + output tokens + 1 token per 2 new characters + {overhead_tokens} tokens of request overhead) and one message fee. If the rest cannot pay for {compute.min_step_tokens} output tokens at ${per_out:g} per million, you cannot act: you are suspended while you have live children, otherwise terminated. Your status line shows the balance your next step needs; a newly created agent needs about <FIRST_STEP> for its first step.
 - Each decision (LLM step): ${compute.price_in:g} per million input tokens and ${compute.price_out:g} per million output tokens (reasoning included). Your entire conversation so far is re-read, and paid for, on every step. Latency is about {compute.latency_base_s:g}s + {compute.latency_in_s * 1000:g}s per 1k input tokens + {compute.latency_out_s:g}s per output token.
 - Time: you act sequentially, one action at a time. Different agents act concurrently. At most {max_children + 1} agents can be alive at once in a run.
 - Creating an agent (SPAWN): fee {_money(coord.spawn_fee)} per agent plus {_money(coord.transfer_per_token * 1000)} per 1k tokens of objective+context copied to it; the SPAWN takes {coord.spawn_latency_s:g}s of your time. A new agent starts with only these rules, the source catalog, and the objective, context and budget you give it. It runs concurrently with you, pays for its own steps from its budget, and returns its unused budget to you when it terminates.
@@ -67,6 +70,10 @@ RESOURCES AND PRICES
 ACTIONS. Reply with exactly one JSON object containing "rationale" (one short sentence), "action", and the fields that action needs:
 {action_lines}
 {mode_rules}"""
+    # A new agent's first step re-reads this prompt plus its brief (~1000 characters), at 1 token per 2 characters.
+    first_in = (len(text) - len(mode_rules) + 1000) // 2 + overhead_tokens  # mode-independent (prompt parity)
+    first = first_in * compute.price_in + coord.message_fee + compute.min_step_tokens * per_out
+    return text.replace("<FIRST_STEP>", _money(first))
 
 
 def root_brief(*, task_id: str, question: str, agent_id: str, balance: int, deadline: float, value_of_time: float) -> str:
@@ -88,8 +95,9 @@ def child_brief(*, agent_id: str, parent: str, t: float, objective: str, context
 
 
 def status_block(*, t: float, deadline: float, balance: int, steps: int, max_steps: int, last_cost: int,
-                 last_latency: float, children: list[str], messages: list[str]) -> str:
+                 last_latency: float, children: list[str], messages: list[str], min_step: int) -> str:
     lines = [f"Status: t={t:.1f}s, your deadline t={deadline:.1f}s ({max(0.0, deadline - t):.1f}s left) | balance {_money(balance)} "
+             f"| a step now needs a balance of at least {_money(min_step)} "
              f"| last step cost {_money(last_cost)} and took {last_latency:.1f}s | steps used {steps}/{max_steps}"]
     if children:
         lines.append("Children: " + "; ".join(children))

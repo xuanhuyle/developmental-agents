@@ -27,9 +27,22 @@ def _llm_policy(constants, no_structured: bool):
         sys.exit("The real experiment needs the Anthropic SDK: pip install anthropic (see README).")
 
 
+def _constants_and_assumptions(a):
+    """The frozen configuration if there is one (what the experiment uses), else the provisional code defaults."""
+    from devagents.config import Constants
+    from devagents.evals.calibrate import Assumptions
+    frozen = None if a.defaults else load_frozen()
+    if frozen:
+        print(f"Using the frozen configuration in data/frozen.json (provisional: {frozen.get('provisional')}). "
+              "Pass --defaults for the pre-repair code defaults.")
+        return Constants.from_json(frozen["constants"]), Assumptions(**frozen["assumptions"])
+    return default_constants(a.compute), Assumptions(a.input_scale, a.reasoning_tokens)
+
+
 def cmd_calibrate(a):
-    from devagents.evals.calibrate import Assumptions, calibrate, format_calibration
-    cal = calibrate(default_constants(a.compute), Assumptions(a.input_scale, a.reasoning_tokens), with_grid=not a.no_grid)
+    from devagents.evals.calibrate import calibrate, format_calibration
+    constants, assumptions = _constants_and_assumptions(a)
+    cal = calibrate(constants, assumptions, with_grid=not a.no_grid)
     print(format_calibration(cal))
     if a.json:
         Path(a.json).write_text(json.dumps(cal, indent=1))
@@ -40,7 +53,8 @@ def cmd_criteria_check(a):
     from devagents.environment.tasks import TASKS
     from devagents.evals.analysis import criteria_check
     from devagents.evals.calibrate import calibrate
-    cal = calibrate(default_constants(a.compute))
+    constants, assumptions = _constants_and_assumptions(a)
+    cal = calibrate(constants, assumptions)
     acc = {c: a.accuracy for c in ("solo", "parallel", "cross")}
     res = criteria_check(cal["cells"], cal["gate"]["sets"], {t.id: t.max_doc_route for t in TASKS}, accuracy=acc,
                          cost_cv=a.cost_cv, n_sims=a.sims)
@@ -91,7 +105,8 @@ def cmd_run(a):
     regimes = ["urgent"] if a.smoke else None
     configs = plan(tasks, constants, modes, repeats, regimes=regimes, frozen_sha=sha)
     exploratory = a.exploratory or a.smoke or bool(a.tasks) or bool(a.modes) or bool(a.repeats and frozen and a.repeats != frozen["R"])
-    out = Path(a.out or ("results/smoke" if a.smoke else "results/main"))
+    default_out = "results/smoke" if a.smoke else ("results/exploratory" if exploratory else "results/main")
+    out = Path(a.out or default_out)
     summary = run_suite(configs, _llm_policy(constants, a.no_structured_output), constants, out,
                         make_manifest("smoke" if a.smoke else "main", configs, constants, exploratory, sha), a.workers)
     print(json.dumps(summary))
@@ -138,12 +153,16 @@ def main(argv=None) -> int:
     s.add_argument("--reasoning-tokens", type=int, default=150)
     s.add_argument("--no-grid", action="store_true")
     s.add_argument("--json")
+    s.add_argument("--defaults", action="store_true", help="ignore data/frozen.json; use the provisional code defaults")
     s.set_defaults(fn=cmd_calibrate)
     s = sub.add_parser("criteria-check")
     s.add_argument("--compute", default="opus")
     s.add_argument("--accuracy", type=float, default=0.9)
     s.add_argument("--cost-cv", type=float, default=0.25)
     s.add_argument("--sims", type=int, default=200)
+    s.add_argument("--input-scale", type=float, default=1.0)
+    s.add_argument("--reasoning-tokens", type=int, default=150)
+    s.add_argument("--defaults", action="store_true", help="ignore data/frozen.json; use the provisional code defaults")
     s.set_defaults(fn=cmd_criteria_check)
     for name, fn in (("pilot", cmd_pilot), ("run", cmd_run)):
         s = sub.add_parser(name)

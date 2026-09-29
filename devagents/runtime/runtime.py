@@ -37,10 +37,18 @@ from devagents.runtime.resources import (
 MODES = ("single", "central", "router", "developmental")
 ROOT = "A0"
 US = 1_000_000  # microseconds per second
+REQUEST_OVERHEAD_TOKENS = 1000  # input-bound allowance for request framing and the injected output schema (SPEC §3.3)
 
 COMPLETE, EXPIRE, DELIVER, WAKE, START = range(5)
 ALL_ACTIONS = ["WORK", "QUERY", "SPAWN", "MESSAGE", "WAIT", "TERMINATE"]
 NO_SPAWN = ["WORK", "QUERY", "MESSAGE", "WAIT", "TERMINATE"]
+
+
+def policy_config(policy) -> dict:
+    """Everything about the policy that changes what the model sees or may output (logged, checked for parity)."""
+    compute = getattr(policy, "compute", None)
+    return {"class": type(policy).__name__, "structured": getattr(policy, "structured", None),
+            "model": getattr(compute, "model", None), "effort": getattr(compute, "effort", None)}
 
 
 def us(seconds: float) -> int:
@@ -71,6 +79,7 @@ class RunConfig:
     central_lifetime_share: float = 0.6
     repeat: int = 0
     frozen_sha: str = ""  # SHA-256 of data/frozen.json when running the frozen main suite
+    fixed_rule_spawns: bool = False  # apply the central allocation rule in any mode (used by the calibration oracle)
 
     def __post_init__(self):
         if self.mode not in MODES:
@@ -105,6 +114,7 @@ class Message:
     content: str
     kind: str  # "message" | "report" | "notice"
     deliver_at: int
+    subject: str | None = None  # for notices: the child the notice is about
     delivered: bool = False
     seen: bool = False
 
@@ -183,7 +193,8 @@ class Run:
         self.log.emit("RUN_STARTED", 0.0, task_id=cfg.task.id, task_class=cfg.task.task_class, regime=cfg.regime.name,
                       mode=cfg.mode, repeat=cfg.repeat, budget=self.ledger.budget, deadline_s=cfg.regime.deadline_s,
                       value_of_time=cfg.regime.value_of_time, compute=asdict(cfg.compute),
-                      audit=cfg.resource_audit(self.info), prompt_sha=self.prompt_fingerprint())
+                      audit=cfg.resource_audit(self.info), prompt_sha=self.prompt_fingerprint(),
+                      policy=policy_config(self.policy))
         root = self._create_agent(None, objective=cfg.task.question, context="", deadline=us(cfg.regime.deadline_s),
                                   t=0, allocation=0)
         while self._queue and self.end_time is None:
@@ -232,7 +243,8 @@ class Run:
         r = self.cfg.regime
         return prompts.system_prompt(mode_rules=self._mode_rules(is_root), catalog=self.catalog, compute=self.cfg.compute,
                                      coord=self.cfg.coord, task_value=r.task_value, value_of_time=r.value_of_time,
-                                     failure_penalty=r.failure_penalty, max_children=self.cfg.max_children)
+                                     failure_penalty=r.failure_penalty, max_children=self.cfg.max_children,
+                                     overhead_tokens=REQUEST_OVERHEAD_TOKENS)
 
     def prompt_fingerprint(self) -> str:
         """Hash of the mode-independent prompt text (everything except the MODE RULES line)."""
@@ -246,12 +258,15 @@ class Run:
         if a.status != "ready":
             return
         a.clock = t
+        if a.steps >= cfg.max_steps:  # the cap holds whatever the previous action was (WAIT, SPAWN+wait, ...)
+            self._stop(a, "max_steps", t)
+            return
         self._observe(a)
         in_upper = self._input_upper_bound(a)
         if in_upper > compute.context_capacity:
             self._stop(a, "context_exhausted", t)
             return
-        free = self.ledger.balance[a.id] - in_upper * compute.price_in - cfg.coord.message_fee
+        free = self.ledger.balance[a.id] - self._reserve_base(in_upper)
         max_tokens = int(min(compute.max_output_tokens, max(0, free) // (compute.price_out + cfg.coord.message_per_token)))
         if max_tokens < compute.min_step_tokens:
             if self._live_children(a):  # allocated money will come back; suspend instead of dying
@@ -289,7 +304,7 @@ class Run:
             plan.update(kind="invalid", error=error)
             latency = 0
         else:
-            error, latency = self._prepare(a, action, plan, t + llm_latency)
+            error, latency = self._prepare(a, action, plan, t, t + llm_latency)
             if error:
                 plan.update(kind="invalid", error=error)
                 latency = 0
@@ -307,25 +322,41 @@ class Run:
         for m in new:
             m.seen = True
         kids = []
+        in_flight = {x for m in self._undelivered_to(a) for x in (m.sender, m.subject)}
         for cid in a.children:
             c = self.agents[cid]
-            kids.append(f"{cid} live" if c.status != "terminated"
-                        else f"{cid} terminated ({c.reason}, returned ${to_usd(c.refunded):.4f})")
+            if c.status == "terminated" and cid not in in_flight:
+                kids.append(f"{cid} terminated ({c.reason}, returned ${to_usd(c.refunded):.4f})")
+            else:  # termination becomes observable only when its report or notice is delivered
+                kids.append(f"{cid} live")
+        head = a.brief if a.steps == 0 else ("\n".join(a.pending) if a.pending else "(no result)")
+        msgs = [f"[t={sec(m.deliver_at):.1f}s] from {m.sender} ({m.kind}): {m.content}" for m in new]
+        a.new_chars += len(head) + sum(len(x) for x in msgs) + 400  # the status block itself is ~400 characters
         status = prompts.status_block(
             t=sec(a.clock), deadline=sec(a.deadline), balance=self.ledger.balance[a.id], steps=a.steps,
             max_steps=self.cfg.max_steps, last_cost=a.last_cost, last_latency=sec(a.last_latency), children=kids,
-            messages=[f"[t={sec(m.deliver_at):.1f}s] from {m.sender} ({m.kind}): {m.content}" for m in new])
-        head = a.brief if a.steps == 0 else ("\n".join(a.pending) if a.pending else "(no result)")
+            messages=msgs, min_step=self.min_step_balance(a))
+        a.new_chars -= len(head) + sum(len(x) for x in msgs) + 400
         text = f"{head}\n\n{status}"
         a.pending = []
         a.transcript.append({"role": "user", "content": text})
         a.new_chars += len(text)
 
+    def _reserve_base(self, in_upper: int) -> int:
+        """The part of the step reserve that does not depend on max_tokens: input upper bound and one message fee."""
+        return in_upper * self.cfg.compute.price_in + self.cfg.coord.message_fee
+
+    def min_step_balance(self, a: Agent) -> int:
+        """Smallest balance that lets `a` take its next step (shown to the agent in every status block)."""
+        c = self.cfg
+        return self._reserve_base(self._input_upper_bound(a)) + c.compute.min_step_tokens * (
+            c.compute.price_out + c.coord.message_per_token)
+
     def _input_upper_bound(self, a: Agent) -> int:
         """Upper bound on this step's input tokens: the exact previous usage, plus at most 1 token per 2 new
         characters, plus the policy's fixed request overhead (for example an injected output schema). The step
         reserve therefore always covers the realized cost."""
-        overhead = getattr(self.policy, "input_overhead_tokens", 0)
+        overhead = REQUEST_OVERHEAD_TOKENS
         if a.prev_in_tokens:
             return a.prev_in_tokens + a.prev_out_tokens + math.ceil(a.new_chars / 2) + overhead
         return math.ceil((len(a.system) + a.new_chars) / 2) + overhead
@@ -391,8 +422,9 @@ class Run:
 
     # ------------------------------------------------------------------ charges at START
 
-    def _prepare(self, a: Agent, action: dict, plan: dict, t_decided: int) -> tuple[str, int]:
-        """Check affordability and caps, post the action's charges (all-or-nothing), and return its latency."""
+    def _prepare(self, a: Agent, action: dict, plan: dict, t: int, t_decided: int) -> tuple[str, int]:
+        """Check affordability and caps, post the action's charges (all-or-nothing, stamped at START time t), and
+        return the action's latency. t_decided (START + decision latency) anchors the central lifetime rule."""
         name, coord = action["action"], self.cfg.coord
         plan["kind"] = name
         if name == "QUERY":
@@ -403,16 +435,17 @@ class Run:
             for r in results:
                 if r.fee:
                     self.ledger.charge(a.id, r.fee)
-                    self.log.emit("RESOURCE_CONSUMED", sec(t_decided), agent=a.id, parent=a.parent, kind="query",
+                    self.log.emit("RESOURCE_CONSUMED", sec(t), agent=a.id, parent=a.parent, kind="query",
                                   amount=r.fee, source=r.source)
             plan["results"] = results
             return "", sum(us(r.latency_s) for r in results)
         if name == "SPAWN":
             kids = action["children"]
             live = sum(1 for x in self.agents.values() if x.status != "terminated")
-            if live + len(kids) > self.cfg.compute.max_concurrency:
+            pending = sum(len(x.inflight.get("specs", ())) for x in self.agents.values() if x.inflight)
+            if live + pending + len(kids) > self.cfg.compute.max_concurrency:
                 return f"concurrency cap: at most {self.cfg.compute.max_concurrency} live agents", 0
-            if len(self.agents) + len(kids) > self.cfg.max_agents:
+            if len(self.agents) + pending + len(kids) > self.cfg.max_agents:
                 return f"run cap: at most {self.cfg.max_agents} agents per run", 0
             specs = []
             for c in kids:
@@ -421,7 +454,7 @@ class Run:
                 specs.append({"objective": objective, "context": context, "tokens": tokens,
                               "fee": coord.spawn_fee + coord.transfer_per_token * tokens})
             fees = sum(s["fee"] for s in specs)
-            if self.cfg.mode == "central":  # fixed rule (SPEC §6)
+            if self.cfg.mode == "central" or self.cfg.fixed_rule_spawns:  # fixed rule (SPEC §6, §7.1)
                 share, life = fixed_allocation(self.ledger.balance[a.id], fees, len(specs), a.deadline - t_decided,
                                                self.cfg.central_budget_share, self.cfg.central_lifetime_share)
                 for s in specs:
@@ -434,7 +467,7 @@ class Run:
                 return f"insufficient balance for this SPAWN (needs ${to_usd(need):.4f})", 0
             for s in specs:
                 self.ledger.charge(a.id, s["fee"])
-                self.log.emit("RESOURCE_CONSUMED", sec(t_decided), agent=a.id, parent=a.parent, kind="spawn",
+                self.log.emit("RESOURCE_CONSUMED", sec(t), agent=a.id, parent=a.parent, kind="spawn",
                               amount=s["fee"])
             plan["specs"] = specs
             plan["wait"] = self.cfg.mode == "central" or bool(action.get("wait_for_children", False))
@@ -452,7 +485,7 @@ class Run:
             if fee > self.ledger.balance[a.id]:  # cannot happen: the step reserve covers any message
                 return "insufficient balance to send", 0
             self.ledger.charge(a.id, fee)
-            self.log.emit("RESOURCE_CONSUMED", sec(t_decided), agent=a.id, parent=a.parent, kind="message", amount=fee)
+            self.log.emit("RESOURCE_CONSUMED", sec(t), agent=a.id, parent=a.parent, kind="message", amount=fee)
             plan["message"] = {"to": to, "content": content, "kind": kind, "tokens": tokens, "fee": fee}
             return "", 0
         if name == "WAIT":
@@ -492,14 +525,19 @@ class Run:
             a.pending.append(f"Created {', '.join(created)}.")
         elif kind in ("MESSAGE", "TERMINATE") and "message" in plan:
             m = plan["message"]
-            if self.agents[m["to"]].status != "terminated":
+            delivered = self.agents[m["to"]].status != "terminated"
+            if delivered:
                 msg = Message(a.id, m["to"], m["content"], m["kind"], t + us(self.cfg.coord.message_latency_s))
                 self.messages.append(msg)
                 self._push(msg.deliver_at, DELIVER, self.agents[m["to"]], "deliver", msg)
                 self.log.emit("MESSAGE_SENT", sec(t), agent=a.id, parent=a.parent, to=m["to"], kind=m["kind"],
                               tokens=m["tokens"], fee=m["fee"], deliver_at=sec(msg.deliver_at), content=m["content"])
             if kind == "MESSAGE":
-                a.pending.append(f"Message sent to {m['to']}.")
+                if delivered:
+                    a.pending.append(f"Message sent to {m['to']}.")
+                else:  # the recipient terminated while the MESSAGE was in flight; the fee stands (SPEC §3.2)
+                    error = f"not delivered: {m['to']} terminated before the message was sent (fee kept)"
+                    a.pending.append(f"Message to {m['to']} {error}.")
         self._emit_completed(a, plan, t, ok, error)
 
         if kind == "TERMINATE":
@@ -513,7 +551,7 @@ class Run:
             self._enter_wait(a, "all", a.deadline, t)
         elif kind == "WAIT":
             mw = plan["max_wait"]
-            until = min(a.deadline, t + us(float(mw))) if mw and mw > 0 else a.deadline
+            until = a.deadline if mw is None else min(a.deadline, t + us(max(0.0, float(mw))))
             self._enter_wait(a, plan["wait_for"], until, t)
         else:
             self._make_ready(a, t)
@@ -531,7 +569,7 @@ class Run:
 
     def _undelivered_to(self, a: Agent, senders: list[str] | None = None) -> list[Message]:
         return [m for m in self.messages if m.recipient == a.id and not m.delivered
-                and (senders is None or m.sender in senders)]
+                and (senders is None or m.sender in senders or m.subject in senders)]
 
     def _wait_satisfied(self, a: Agent) -> bool:
         if a.wait_for == "all":
@@ -558,9 +596,9 @@ class Run:
         if a.status == "waiting" and self._wait_satisfied(a):
             self._make_ready(a, t)
 
-    def _notify(self, parent: Agent, text: str, t: int) -> None:
-        """Free, content-free lifecycle notice to a live parent, delivered like a message."""
-        msg = Message("runtime", parent.id, text, "notice", t + us(self.cfg.coord.message_latency_s))
+    def _notify(self, parent: Agent, child: str, text: str, t: int) -> None:
+        """Free, content-free lifecycle notice to a live parent about `child`, delivered like a message."""
+        msg = Message("runtime", parent.id, text, "notice", t + us(self.cfg.coord.message_latency_s), subject=child)
         self.messages.append(msg)
         self._push(msg.deliver_at, DELIVER, parent, "deliver", msg)
 
@@ -632,7 +670,7 @@ class Run:
             return
         parent = self.agents[a.parent]
         self._terminate(a, reason, t)
-        self._notify(parent, f"{a.id} terminated ({reason}) without a report.", t)
+        self._notify(parent, a.id, f"{a.id} terminated ({reason}) without a report.", t)
 
     def _on_expire(self, a: Agent, t: int) -> None:
         if a.parent is None:
@@ -640,7 +678,7 @@ class Run:
             return
         parent = self.agents[a.parent]
         self._terminate(a, "lifetime_expired", t)
-        self._notify(parent, f"{a.id} terminated (lifetime_expired) without a report.", t)
+        self._notify(parent, a.id, f"{a.id} terminated (lifetime_expired) without a report.", t)
 
     def _end_run(self, root: Agent, outcome: str, t: int) -> None:
         self.outcome, self.end_time = outcome, t

@@ -26,9 +26,9 @@ from devagents.evals.analysis import criteria_check
 from devagents.evals.calibrate import Assumptions, calibrate, label, measure
 from devagents.evals.metrics import metrics_from_events
 from devagents.runtime.events import EventLog, read_events
-from devagents.runtime.runtime import MODES, ReserveViolation, Run, RunConfig
+from devagents.runtime.runtime import MODES, ReserveViolation, Run, RunConfig, policy_config
 
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 4  # the original attempt plus up to 3 retries (SPEC §8)
 
 
 def is_infra_error(exc: BaseException) -> bool:
@@ -80,12 +80,21 @@ def run_one(cfg: RunConfig, policy, constants: Constants, out_dir: Path) -> dict
     return {"run_id": cfg.run_id, "ok": False, "errors": errors}
 
 
+RESUME_KEYS = ("kind", "exploratory", "frozen_sha", "planned_runs", "policy", "constants")
+
+
 def run_suite(configs: list[RunConfig], policy, constants: Constants, out_dir: Path, manifest: dict,
               workers: int = 1) -> dict:
     out_dir = Path(out_dir)
     (out_dir / "events").mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / "manifest.json"
-    if not manifest_path.exists():
+    manifest = {**manifest, "policy": policy_config(policy)}
+    if manifest_path.exists():  # resuming: only the identical suite may continue in this directory
+        old = json.loads(manifest_path.read_text())
+        diff = [k for k in RESUME_KEYS if old.get(k) != manifest.get(k)]
+        if diff:
+            raise SystemExit(f"{out_dir} holds a different suite (differs in {', '.join(diff)}); use another --out.")
+    else:
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
     done = set()
     runs_path = out_dir / "runs.jsonl"
@@ -140,14 +149,18 @@ def _quantile(xs: list[float], q: float) -> float:
 def pilot_stats(pilot_dir: Path) -> dict:
     """Token and dispersion statistics from a pilot (single and central modes only; SPEC §7.4)."""
     pilot_dir = Path(pilot_dir)
+    manifest_path = pilot_dir / "manifest.json"
+    if manifest_path.exists() and set(json.loads(manifest_path.read_text()).get("modes", [])) - {"single", "central"}:
+        raise ValueError("the pilot manifest lists modes other than single and central (SPEC §7.4)")
     ratios, reasoning, outs, runs = [], [], [], []
     for path in sorted((pilot_dir / "events").glob("*.jsonl")):
         events = read_events(path)
+        start = next((e for e in events if e["type"] == "RUN_STARTED"), None)
+        if start and start["mode"] in ("developmental", "router"):  # checked for complete AND incomplete logs
+            raise ValueError(f"a pilot must not contain developmental or router output (SPEC §7.4): {path.name}")
         if not any(e["type"] == "RUN_COMPLETED" for e in events):
             continue
         m = metrics_from_events(events)
-        if m["mode"] in ("developmental", "router"):
-            raise ValueError("a pilot must not contain developmental or router runs (SPEC §7.4)")
         runs.append(m)
         for e in events:
             if e["type"] == "RESOURCE_CONSUMED" and e["kind"] == "llm" and e.get("est_in_tokens"):
@@ -161,14 +174,19 @@ def pilot_stats(pilot_dir: Path) -> dict:
     for cls in ("solo", "parallel", "cross"):
         xs = [m["quality"] for m in single if m["task_class"] == cls]
         accuracy[cls] = statistics.fmean(xs) if xs else None
+    # Cost as in §3.4, without the failure penalty (failures belong to the quality channel of the §7.3 model).
+    # The CV is a pooled relative variance using n-1 sample variances; a median of per-group n=2 CVs is biased low.
     groups: dict = {}
     for m in runs:
-        groups.setdefault((m["task_id"], m["regime"], m["mode"]), []).append(m["money_usd"] + m["value_of_time"] * m["elapsed_s"])
-    cvs = [statistics.pstdev(v) / statistics.fmean(v) for v in groups.values() if len(v) > 1 and statistics.fmean(v) > 0]
+        elapsed = m["elapsed_s"] if m["outcome"] == "answered" else m["deadline_s"]
+        groups.setdefault((m["task_id"], m["regime"], m["mode"]), []).append(m["money_usd"] + m["value_of_time"] * elapsed)
+    rel_vars = [statistics.variance(v) / statistics.fmean(v) ** 2 for v in groups.values()
+                if len(v) > 1 and statistics.fmean(v) > 0]
     return {"runs": len(runs), "llm_calls": len(ratios), "input_scale": round(statistics.median(ratios), 4),
             "reasoning_tokens": int(statistics.median(reasoning)), "p90_output_tokens": int(_quantile(outs, 0.9)),
             "single_p95_elapsed_s": _quantile([m["elapsed_s"] for m in single], 0.95) if single else None,
-            "single_accuracy": accuracy, "cost_cv": round(statistics.median(cvs), 4) if cvs else None}
+            "single_accuracy": accuracy,
+            "cost_cv": round(statistics.fmean(rel_vars) ** 0.5, 4) if rel_vars else None, "cost_cv_groups": len(rel_vars)}
 
 
 def freeze(pilot_dir: Path | None = None, compute: str = "opus", out: Path = FROZEN_PATH, n_sims: int = 200,
@@ -212,7 +230,7 @@ def freeze(pilot_dir: Path | None = None, compute: str = "opus", out: Path = FRO
                               "spec_sha": sha256_file(SPEC_PATH), "provisional": stats is None, "pilot": stats,
                               "assumptions": asdict(base), "constants": c.to_json(), "repair_steps": steps,
                               "calibration": {"delta": cal["delta"], "cells": cal["cells"], "gate": cal["gate"]},
-                              "criteria_check": cc, "R": cc["R"]}
+                              "criteria_check": cc, "R": cc["R"], "prompt_sha": prompt_fingerprint(c)}
                     Path(out).parent.mkdir(parents=True, exist_ok=True)
                     Path(out).write_text(json.dumps(frozen, indent=1, sort_keys=True))
                     return {"ok": True, "path": str(out), "sha": sha256_file(out), "R": cc["R"], "steps": steps,
@@ -226,15 +244,27 @@ def verify_frozen(frozen: dict) -> list[str]:
     problems = []
     constants = Constants.from_json(frozen["constants"])
     cal = calibrate(constants, Assumptions(**frozen["assumptions"]))
+    numeric = ("solo_fitness", "div_fitness", "router_div_fitness", "min_margin", "max_margin", "min_incremental_gain")
     for key, cell in frozen["calibration"]["cells"].items():
         now = cal["cells"].get(key)
         if now is None or now["label"] != cell["label"]:
             problems.append(f"label of {key} changed: {cell['label']} -> {now and now['label']}")
+        elif any(abs(now[k] - cell[k]) > 1e-9 for k in numeric):
+            problems.append(f"calibrated values of {key} changed (world, prices, prompts or runtime differ from the freeze)")
+    if frozen.get("prompt_sha") != prompt_fingerprint(constants):
+        problems.append("the prompt fingerprint differs from the freeze")
     if cal["gate"]["sets"] != frozen["calibration"]["gate"]["sets"]:
         problems.append("the S/P/twin/D sets changed")
     if not cal["gate"]["passed"]:
         problems.append("the gate no longer passes")
     return problems
+
+
+def prompt_fingerprint(constants: Constants) -> str:
+    """The mode-independent system-prompt fingerprint for the first task and regime (frozen and verified)."""
+    cfg = RunConfig(TASKS[0], next(iter(constants.regimes.values())), "developmental", compute=constants.compute,
+                    coord=constants.coord)
+    return Run(cfg, None, InformationEnvironment(load_world(), constants.sources)).prompt_fingerprint()
 
 
 def frozen_constants() -> tuple[dict, Constants, str]:

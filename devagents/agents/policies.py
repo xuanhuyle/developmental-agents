@@ -16,7 +16,7 @@ import time
 from typing import Callable
 
 from devagents.runtime.resources import ComputeOption, estimate_tokens
-from devagents.runtime.runtime import Agent, Decision, Run
+from devagents.runtime.runtime import ALL_ACTIONS, Agent, Decision, Run
 
 
 def action_schema(allowed: list[str]) -> dict:
@@ -62,11 +62,42 @@ def parse_action(text: str) -> tuple[dict | None, str]:
     return obj, ""
 
 
+def visible_text(content) -> str:
+    """The text of one transcript turn as the estimator counts it: plain strings, or the text blocks of an API reply.
+    Thinking blocks (and their signatures) are excluded, so the pilot's r = API tokens / estimator tokens is measured
+    on the same text the calibration oracle counts."""
+    if isinstance(content, str):
+        return content
+    out = []
+    for b in content:
+        btype = b.get("type") if isinstance(b, dict) else getattr(b, "type", "")
+        if btype == "text":
+            out.append(b.get("text", "") if isinstance(b, dict) else getattr(b, "text", ""))
+    return "".join(out)
+
+
 def transcript_tokens(agent: Agent) -> int:
-    """Estimator count of the next call's input: the system prompt plus the whole transcript."""
-    return estimate_tokens(agent.system) + sum(
-        estimate_tokens(m["content"] if isinstance(m["content"], str) else json.dumps(m["content"], default=str))
-        for m in agent.transcript)
+    """Estimator count of the next call's input: the system prompt plus the visible transcript."""
+    return estimate_tokens(agent.system) + sum(estimate_tokens(visible_text(m["content"])) for m in agent.transcript)
+
+
+def _field(b, name: str):
+    return b.get(name) if isinstance(b, dict) else getattr(b, name, None)
+
+
+def clean_content(content: list) -> list:
+    """Make a reply safe to re-send: drop empty text blocks and thinking blocks without a signature (both occur on
+    refusals and truncated replies, and the API rejects them), keep everything else unchanged. If nothing remains,
+    use a placeholder so the assistant turn is never empty."""
+    kept = []
+    for b in content:
+        btype = _field(b, "type")
+        if btype == "text" and not (_field(b, "text") or "").strip():
+            continue
+        if btype == "thinking" and not _field(b, "signature"):
+            continue
+        kept.append(b)
+    return kept or [{"type": "text", "text": "(no output)"}]
 
 
 class ScriptedPolicy:
@@ -94,8 +125,6 @@ class ScriptedPolicy:
 class LLMPolicy:
     """One Messages API call per agent step. The Anthropic SDK is imported only here."""
 
-    input_overhead_tokens = 1000  # upper bound for request framing and the injected output schema
-
     def __init__(self, compute: ComputeOption, client=None, structured: bool = True, max_retries: int = 4):
         if client is None:
             import anthropic  # optional dependency: only the real experiment needs it
@@ -107,7 +136,9 @@ class LLMPolicy:
     def request(self, agent: Agent, allowed: list[str], max_tokens: int) -> dict:
         output_config: dict = {"effort": self.compute.effort}
         if self.structured:
-            output_config["format"] = {"type": "json_schema", "schema": action_schema(allowed)}
+            # The same six-action schema in every mode and step (prompt parity, SPEC §6); the runtime rejects
+            # actions the mode does not allow, as invalid, charged steps.
+            output_config["format"] = {"type": "json_schema", "schema": action_schema(ALL_ACTIONS)}
         return dict(model=self.compute.model, max_tokens=max_tokens, system=agent.system,
                     messages=[{"role": m["role"], "content": m["content"]} for m in agent.transcript],
                     output_config=output_config)
@@ -121,7 +152,7 @@ class LLMPolicy:
         in_tokens = (u.input_tokens + (getattr(u, "cache_read_input_tokens", 0) or 0)
                      + (getattr(u, "cache_creation_input_tokens", 0) or 0))
         # Append the full content (thinking blocks included) so the history stays append-only.
-        content = resp.content or [{"type": "text", "text": "(no output)"}]
+        content = clean_content(list(resp.content or []))
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         meta = dict(wall_s=wall, est_in_tokens=est_in, est_visible_out_tokens=estimate_tokens(text))
         if resp.stop_reason == "refusal":

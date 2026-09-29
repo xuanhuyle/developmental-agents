@@ -3,7 +3,7 @@
 import json
 import re
 
-from devagents.agents.policies import LLMPolicy, action_schema
+from devagents.agents.policies import LLMPolicy, action_schema, visible_text
 from devagents.config import default_constants, load_frozen
 from devagents.environment.tasks import TASKS_BY_ID
 from devagents.evals.experiment import plan, run_suite, make_manifest
@@ -31,10 +31,7 @@ class Response:
 
 
 def _chars(kw) -> int:
-    n = len(kw["system"])
-    for m in kw["messages"]:
-        n += len(m["content"]) if isinstance(m["content"], str) else sum(len(b.text) for b in m["content"])
-    return n
+    return len(kw["system"]) + sum(len(visible_text(m["content"])) for m in kw["messages"])
 
 
 class FakeModel:
@@ -51,8 +48,12 @@ class FakeModel:
         step = sum(1 for m in kw["messages"] if m["role"] == "assistant")
         if self.refuse and first.startswith("You are agent") and step == 0:
             self.refuse = False
-            return Response([Block("")], Usage(_chars(kw) // 4, 5), "refusal")
-        action = self.root(first, step, allowed) if first.startswith("Task ") else self.child(first, step)
+            return Response([], Usage(_chars(kw) // 4, 5), "refusal")  # a refusal may carry no content at all
+        must_spawn = "Your first action must be SPAWN" in kw["system"]  # read the MODE RULES line, as a model would
+        if not first.startswith("Task "):
+            action = self.child(first, step)
+        else:
+            action = self.root(first, step, ["SPAWN"] if must_spawn and step == 0 else allowed)
         text = json.dumps(action)
         return Response([Block(text)], Usage(_chars(kw) // 4 + 5, estimate_tokens(text) + 40))
 
@@ -91,7 +92,8 @@ def test_request_shape_and_append_only_transcript(tmp_path):
     req = model.requests[0]
     assert req["model"] == c.compute.model and 0 < req["max_tokens"] <= c.compute.max_output_tokens
     assert req["output_config"]["effort"] == c.compute.effort
-    assert req["output_config"]["format"]["schema"] == action_schema(["WORK", "QUERY", "SPAWN", "MESSAGE", "WAIT", "TERMINATE"])
+    assert all(r["output_config"]["format"]["schema"] == action_schema(["WORK", "QUERY", "SPAWN", "MESSAGE", "WAIT", "TERMINATE"])
+               for r in model.requests)  # identical in every mode and step (prompt parity)
     for r in model.requests:  # alternating turns, first is user, last is user
         roles = [m["role"] for m in r["messages"]]
         assert roles[0] == "user" and roles[-1] == "user" and all(a != b for a, b in zip(roles, roles[1:]))
@@ -107,6 +109,10 @@ def test_a_refusal_is_a_charged_invalid_step_not_a_crash(tmp_path):
     run_suite(configs, LLMPolicy(c.compute, client=FakeClient(model)), c, tmp_path, make_manifest("t", configs, c, True, ""))
     m = metrics_from_events(read_events(next((tmp_path / "events").glob("*.jsonl"))))
     assert m["invalid_actions"] == 1 and m["outcome"] == "answered"
+    for req in model.requests:  # the API rejects empty text blocks, so none may ever be re-sent
+        for msg in req["messages"]:
+            if not isinstance(msg["content"], str):
+                assert msg["content"] and all((b["text"] if isinstance(b, dict) else b.text).strip() for b in msg["content"])
 
 
 def test_full_pipeline_runner_to_report(tmp_path):

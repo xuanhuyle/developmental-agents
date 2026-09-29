@@ -55,10 +55,10 @@ class InformationEnvironment:
         c = self.costs
         lines = [
             f'Structured source "sql": SQLite, read-only SELECT queries. Fee ${to_usd(c.sql_fee):.4f} per query; '
-            f"latency {c.sql_base_s:.1f}s + {c.sql_per_row_s:.2f}s per returned row (max {MAX_ROWS} rows). Tables:",
+            f"latency {c.sql_base_s:g}s + {c.sql_per_row_s:g}s per returned row (max {MAX_ROWS} rows). Tables:",
             *[f"  - {s}" for s in SQL_SCHEMA_SUMMARY],
-            f"Unstructured documents: fee ${to_usd(c.doc_fee):.4f} per document; latency {c.doc_base_s:.1f}s + "
-            f"{c.doc_per_token_s:.2f}s per document token. The full text enters the reader's context. Documents:",
+            f"Unstructured documents: fee ${to_usd(c.doc_fee):.4f} per document; latency {c.doc_base_s:g}s + "
+            f"{c.doc_per_token_s:g}s per document token. The full text enters the reader's context. Documents:",
         ]
         for doc_id in sorted(self.world.docs):
             lines.append(f"  - {doc_id}: {DOC_TITLES.get(doc_id, doc_id)} (~{self.doc_tokens[doc_id]} tokens)")

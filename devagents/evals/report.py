@@ -18,11 +18,14 @@ from devagents.runtime.events import read_events
 from devagents.runtime.runtime import MODES
 
 
-def load_runs(results_dir: Path) -> tuple[list[dict], list[dict], dict]:
-    """(per-run metrics, RUN_STARTED events, infrastructure-error lines), all read from disk."""
+def load_runs(results_dir: Path, planned: set[str] | None = None) -> tuple[list[dict], list[dict], dict]:
+    """(per-run metrics, RUN_STARTED events, infrastructure-error lines), all read from disk. Only runs in `planned`
+    (the manifest's run ids) count; any other log in the directory is ignored."""
     results_dir = Path(results_dir)
     metrics, starts = [], []
     for path in sorted((results_dir / "events").glob("*.jsonl")):
+        if planned is not None and path.stem not in planned:
+            continue
         events = read_events(path)
         start = next((e for e in events if e["type"] == "RUN_STARTED"), None)
         if start is None or not any(e["type"] == "RUN_COMPLETED" for e in events):
@@ -39,17 +42,22 @@ def load_runs(results_dir: Path) -> tuple[list[dict], list[dict], dict]:
     return metrics, starts, errors
 
 
-def audit_parity(starts: list[dict]) -> tuple[bool, list[str]]:
-    """Every (task, regime, repeat) block has identical audit records and prompt fingerprints across modes."""
+def audit_parity(starts: list[dict], frozen_sha: str | None = None) -> tuple[bool, list[str]]:
+    """Every (task, regime, repeat) block has identical audit records, prompt fingerprints and policy configurations
+    across modes, and every run carries the manifest's frozen hash."""
     blocks = defaultdict(list)
     for s in starts:
         blocks[(s["task_id"], s["regime"], s["repeat"])].append(s)
     problems = []
+    if frozen_sha is not None:
+        problems += [f"{s['run_id']} ran under a different freeze" for s in starts if s["audit"].get("frozen_sha") != frozen_sha]
     for key, ss in blocks.items():
         if len({json.dumps(s["audit"], sort_keys=True) for s in ss}) > 1:
             problems.append(f"audit differs across modes in block {key}")
         if len({s["prompt_sha"] for s in ss}) > 1:
             problems.append(f"prompt fingerprint differs across modes in block {key}")
+        if len({json.dumps(s.get("policy"), sort_keys=True) for s in ss}) > 1:
+            problems.append(f"policy configuration differs across modes in block {key}")
     return not problems, problems
 
 
@@ -83,11 +91,11 @@ def build_report(results_dir: Path, frozen: dict, frozen_ok: bool, weight_overri
         regimes[name] = replace(regimes[name], value_of_time=vot)
     w_coord = (weight_overrides or {}).get("w_coord", 0.0)
     weights = {k: Weights(r.task_value, r.value_of_time, w_coord, r.failure_penalty) for k, r in regimes.items()}
-    exploratory = bool(manifest.get("exploratory")) or bool(weight_overrides) or not frozen_ok
+    exploratory = bool(manifest.get("exploratory")) or bool(weight_overrides) or not frozen_ok or n_boot != N_BOOT
 
-    metrics, starts, errors = load_runs(results_dir)
+    metrics, starts, errors = load_runs(results_dir, set(manifest["planned_runs"]))
     records = to_records(metrics, weights, cells)
-    audit_ok, audit_problems = audit_parity(starts)
+    audit_ok, audit_problems = audit_parity(starts, manifest.get("frozen_sha"))
     planned = defaultdict(int)
     for run_id in manifest["planned_runs"]:
         planned[run_id.split("-")[2]] += 1
@@ -95,7 +103,7 @@ def build_report(results_dir: Path, frozen: dict, frozen_ok: bool, weight_overri
     if main_cells:
         val = validity(records, main_cells, dict(planned), manifest["repeats"], audit_ok, frozen_ok)
         crit = evaluate(records, main_cells, sets, n_boot=n_boot)
-        h2 = secondary_router(records, main_cells, n_boot=n_boot) if any(r["mode"] == "router" for r in records) else None
+        h2 = secondary_router(records, main_cells, sets, n_boot) if any(r["mode"] == "router" for r in records) else None
         verdict = "uninformative" if not val["valid"] else crit["verdict"]
     else:  # a pilot or smoke suite: its tasks have no calibrated labels, so §8 does not apply
         val, crit, h2 = {"valid": False}, {"criteria": {}, "verdict": "n/a", "fired": []}, None
@@ -127,6 +135,7 @@ def build_report(results_dir: Path, frozen: dict, frozen_ok: bool, weight_overri
             "agreement_with_labels": statistics.fmean(agreement) if agreement else None,
             "n_runs": len(records), "infra_errors": {k: len(v) for k, v in errors.items()},
             "weights": {k: vars(w) for k, w in weights.items()}, "frozen_sha": manifest.get("frozen_sha"),
+            "n_boot": n_boot,
             "provisional_freeze": frozen.get("provisional", False)}
 
 
@@ -142,7 +151,7 @@ def format_markdown(rep: dict) -> str:
     if rep["provisional_freeze"]:
         L.append("> The freeze is **provisional** (no pilot). Its token assumptions are defaults, not measurements.\n")
     L.append(f"# Experiment 0 report\n\nResults: `{rep['results_dir']}`. Frozen config sha256: `{rep['frozen_sha']}`. "
-             f"Completed runs: {rep['n_runs']}.\n")
+             f"Completed runs: {rep['n_runs']}. Bootstrap resamples: {rep['n_boot']}.\n")
     L.append(f"## Verdict: **{rep['verdict'].upper()}**\n")
     L.append("### Validity conditions (SPEC §8)\n")
     v = rep["validity"]
@@ -155,9 +164,13 @@ def format_markdown(rep: dict) -> str:
         nums = {kk: vv for kk, vv in c.items() if kk != "fires"}
         L.append(f"- **{k}**: {'FIRES' if c['fires'] else 'does not fire'} — {json.dumps(nums, default=lambda x: round(x, 4) if isinstance(x, float) else str(x))}")
     if rep["h2_router"]:
-        L.append("\n### H2 (secondary, does not affect the verdict): developmental − router over all cells\n")
-        for m, c in rep["h2_router"].items():
-            L.append(f"- {m}: θ={_f(c['theta'])} 95% CI [{_f(c['lo'])}, {_f(c['hi'])}]")
+        L.append("\n### H2 (secondary, does not affect the verdict): developmental − router\n")
+        for scope, block in rep["h2_router"].items():
+            for m, c in block.items():
+                if c["theta"] is None:
+                    L.append(f"- {scope} cells, {m}: no cells" + (" (the freeze has no I cells)" if scope == "I" else ""))
+                else:
+                    L.append(f"- {scope} cells, {m}: θ={_f(c['theta'])} 95% CI [{_f(c['lo'])}, {_f(c['hi'])}]")
     L.append(f"\nAgreement of developmental organizations with calibrated labels: {_f(rep['agreement_with_labels'], '{:.2f}')}\n")
     L.append("## Means per (class, regime, mode)\n")
     L.append("| class | regime | mode | n | quality | money $ | time s | fitness | spawned | parallel | agents | coord $ | invalid | caps |")

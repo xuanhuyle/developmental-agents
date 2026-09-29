@@ -29,8 +29,8 @@ The developmental policy's division then changes in the direction the calibratio
 
 **H2 (secondary, pre-registered, cannot change the §8 verdict).** `developmental` outperforms
 `router`, which makes one organizational decision, at its first action, with no recursion. In this
-environment an ideal `router` matches an ideal `developmental` (§10). So H2 asks whether
-local, incremental decisions help *in practice*, not by design.
+environment no cell gives an ideal `developmental` a *robust* advantage over an ideal `router` (no I
+cells, §10). So H2 asks mainly whether local, incremental decisions help *in practice*.
 
 **H0.** Any criterion in §8 fires.
 
@@ -85,7 +85,9 @@ in order, are **COMPLETE < EXPIRE < DELIVER < WAKE < START**.
      action is still charged for its LLM step and counts as invalid.
   4. COMPLETE is scheduled.
 - **COMPLETE:** the effects apply, only if the actor is still live. An action whose actor was
-  terminated in flight keeps its charges and has no effects.
+  terminated in flight keeps its charges and has no effects. A MESSAGE whose recipient terminated
+  while the MESSAGE was in flight is charged, not delivered, and reported to the sender as
+  undelivered.
 - **EXPIRE:** the agent terminates at its deadline. For the root, the run fails.
 - **Termination** proceeds in post-order (descendants first, in creation order). Each agent's
   whole balance is refunded to its parent, which is always live at that moment. The root's
@@ -98,9 +100,12 @@ in order, are **COMPLETE < EXPIRE < DELIVER < WAKE < START**.
   - The answer counts only if its TERMINATE completes at or before the deadline.
 - **WAIT:**
   - `WAIT(any)` wakes on the next delivery, or immediately if a delivered message is unread.
-  - `WAIT(all)` wakes when no child is live and every child's report or notice has been
+  - `WAIT(all)` wakes when no child is live and every child's report or lifecycle notice has been
     delivered, or immediately if both already hold.
-  - `max_wait_s` defaults to the agent's own deadline.
+  - An absent `max_wait_s` means the agent's own deadline. A numeric value `v` waits at most
+    `max(0, v)` seconds, so 0 is an immediate poll.
+  - A child's termination becomes visible in its parent's status block only once its report or
+    notice has been delivered.
   - `WAIT(any)` with no live child, no live parent and nothing in flight is invalid.
 - **Continuation:** SPAWN may set `wait_for_children: true`, which enters `WAIT(all)` without
   another LLM step. It is available in every spawning mode, forced in `central`, and used by
@@ -114,7 +119,9 @@ in order, are **COMPLETE < EXPIRE < DELIVER < WAKE < START**.
   - At most `max_concurrency = 9` agents may be live at once, counting the root and waiting
     agents.
   - At most 16 agents per run, counting the root.
-  - At most 20 steps per agent. Every cap hit is logged.
+  - Both caps also count children of SPAWNs that are accepted but still in flight.
+  - At most 20 steps per agent, checked at every START, whatever the previous action was. Every
+    cap hit is logged.
 
 ### 3.3 Money: conservation and reserve rules
 
@@ -123,9 +130,13 @@ in order, are **COMPLETE < EXPIRE < DELIVER < WAKE < START**.
 2. **Step reserve.** Before each LLM step:
    - `max_tokens = min(cap, (balance − in_upper·p_in − msg_fee) // (p_out + msg_tok))`.
    - `in_upper` is the previous step's input plus its output tokens, plus 1 token per 2 new
-     characters, plus the policy's fixed request overhead. The overhead is 1000 tokens for the
-     LLM, which covers the injected output schema. On the first step `in_upper` is 1 token per 2
-     characters of the system prompt and first observation, plus the same overhead.
+     characters, plus a fixed request overhead of 1000 tokens (for every policy, including the
+     calibration oracle), which covers the injected output schema. On the first step `in_upper`
+     is 1 token per 2 characters of the system prompt and first observation, plus the same
+     overhead.
+   - **The rule is disclosed.** The shared system prompt states the output cap, the reserve rule,
+     and the approximate cost of a new agent's first step. Every status block shows the balance
+     the agent's next step needs.
    - The step itself, and any MESSAGE or report that fits in its output, can therefore never
      overdraw.
    - A realized cost above the reserve is an **infrastructure error** (`ReserveViolation`). It
@@ -218,7 +229,9 @@ The semantics and costs are in §3.
 ## 6. Modes
 
 **Prompt parity.** Every agent in every mode gets the **same system prompt**: all six actions,
-the full price and latency table, the catalog and the scoring formula. The only exception is
+the full price and latency table, the reserve rule, the catalog and the scoring formula. Every LLM
+request carries the **same output schema** (all six actions); actions a mode does not allow are
+rejected by the runtime as invalid, charged steps, not made impossible by the schema. The only exception is
 one **MODE RULES** line, written in parallel form and neutral in role ("root agent", never
 "coordinator" or "worker"). A test renders every mode's prompts for the same (task, regime) and
 asserts that they differ only in that slot. It also asserts that the equal-resource audit
@@ -245,7 +258,8 @@ use SQL or the docs.
   answers.
 - `fanout-k` (1 ≤ k ≤ min(K, #docs)): "divide after looking". The root runs any SQL itself,
   then spawns k children with `wait_for_children`. The docs are assigned round-robin, and
-  allocation uses the §6 `central` rule. Each child reads its docs and reports, and the root
+  allocation uses the §6 `central` rule, applied by the runtime itself (`fixed_rule_spawns`), so
+  the oracle and `central` share one implementation. Each child reads its docs and reports, and the root
   answers. On a doc-free route, `fanout-1` gives the SQL to one child.
 - `atstart-k` (dependent routes only): "divide before looking". The root spawns k children
   over all candidate docs, and each child runs the SQL and reads only its qualifying docs. The
@@ -259,7 +273,7 @@ reasoning tokens)` output.
 
 The perturbation grid is:
 
-- `r ∈ {0.75, 1, 1.25}`
+- `r ∈ {0.75, 1, 1.25} × base r` (base r = 1 without a pilot, the pilot's measured r after it)
 - reasoning tokens ∈ {0.5, 1, 2} × base
 - extra WORK steps per agent ∈ {0, 1}
 
@@ -281,7 +295,10 @@ A cell (task, regime) is labelled as follows:
   ≥ 0.3 in every cell. So answering always beats giving up, and reading alone beats guessing,
   whose expected fitness is ≤ 0.17.
 - (e) S_urgent, P_urgent, the twin set and D_urgent are all non-empty.
-- (f) Every oracle organization runs with zero invalid actions and zero cap hits.
+- (f) At the base point every oracle organization, and at every grid point every `solo`
+  organization, runs with zero invalid actions, zero cap hits and no starved agent. An organization
+  that cannot complete cleanly at some other grid point (for example, a child starved by the fixed
+  allocation rule) counts as infeasible there.
 
 ### 7.3 Criteria check (power and specificity)
 
@@ -303,6 +320,8 @@ The developmental policies are:
 - RANDOM divides in half of its runs.
 - SPAWN-IFF-URGENT divides whenever the regime is `urgent`.
 - SPAWN-IFF-MULTIDOC divides whenever the doc route has ≥ 4 docs.
+- WASTEFUL organizes like IDEAL but, where it stays solo, pays as much as the fixed
+  decomposition. It targets criteria 4c and 5.
 
 **R** is the smallest value in {3, 5, 8, 10} for which two conditions hold. First, IDEAL is
 judged "supported" in ≥ 80% of simulations. Second, every other policy is judged "not
@@ -318,11 +337,15 @@ supported" in ≥ 95%.
    - p90 output tokens, which gives `min_step_tokens = max(256, p90)`;
    - `single` p95 elapsed time, which gives `deadline = max(1500 s, 2 × p95)`;
    - `single` accuracy per class, which gives `p_class`;
-   - the cost CV.
+   - the cost CV: a pooled relative variance with n−1 sample variances across (task, regime,
+     mode) groups, on the §3.4 resource cost without the failure penalty.
+
+   The token ratio r is measured on the visible text only: thinking blocks are excluded, as in
+   the oracle's count.
 2. **Freeze** (`python -m devagents freeze --pilot DIR`): calibrate, then gate. If needed,
    apply **mechanical repair**, then run the criteria check, and write `data/frozen.json`
-   (constants, assumptions, labels, sets, R, pilot statistics). Commit the file, and record its
-   SHA-256 in `EXPERIMENT_STATUS.md` and §11.
+   (constants, assumptions, labels, calibrated values, sets, R, pilot statistics, and the prompt
+   fingerprint). Commit the file, and record its SHA-256 in `EXPERIMENT_STATUS.md` and §11.
 
    **Mechanical repair** walks the candidates in lexicographic order of (doc steps, urgent
    steps, relaxed steps), each from 0 to 6:
@@ -333,8 +356,11 @@ supported" in ≥ 95%.
    The first candidate that passes both the gate (with an exact re-simulation) and the
    criteria check is frozen.
 3. **Main run** (`python -m devagents run`). It refuses to start in three cases: when the
-   recomputed calibration differs from `data/frozen.json`, when no freeze exists, or when the
-   freeze is provisional (made without a pilot).
+   recomputed calibration differs from `data/frozen.json` (labels, sets, any calibrated value, or
+   the prompt fingerprint), when no freeze exists, or when the freeze is provisional (made without
+   a pilot). A results directory can only be resumed by the identical suite (same manifest: planned
+   runs, freeze, policy configuration, constants). Exploratory runs default to a separate
+   directory.
 
 ## 8. Falsification criteria (pre-registered)
 
@@ -403,7 +429,7 @@ and `agent` and `parent` where relevant.
 
 | Type | Additional fields |
 |---|---|
-| `RUN_STARTED` | task_id, task_class, regime, mode, repeat, budget, deadline_s, value_of_time, compute, audit, prompt_sha |
+| `RUN_STARTED` | task_id, task_class, regime, mode, repeat, budget, deadline_s, value_of_time, compute, audit, prompt_sha, policy |
 | `AGENT_CREATED` | depth, objective, deadline, permissions |
 | `AGENT_SPAWNED` | child, allocation, fee, context_tokens, objective |
 | `RESOURCE_ALLOCATED` | source, target, amount, kind (`allocation` or `return`) |
@@ -431,7 +457,9 @@ and `agent` and `parent` where relevant.
 - termination reasons;
 - lineage edges.
 
-**Reports** give per-(class, regime, mode) means, the §8 evaluation with its numbers, the
+**Reports** count only the manifest's planned runs. Reports made with other weights, a
+non-default number of bootstrap resamples, an exploratory suite, or an unverified freeze are
+stamped EXPLORATORY. They give per-(class, regime, mode) means, the §8 evaluation with its numbers, the
 validity conditions, H2, the per-cell Pareto frontier over (quality↑, money↓, time↓), and
 agreement between the developmental organization and the calibrated labels.
 
@@ -444,11 +472,12 @@ agreement between the developmental organization and the calibrated labels.
 - **The environment is designed** so that different organizations are optimal. That design is
   the manipulation, not a finding. A positive result shows only that an LLM *can* make these
   decisions economically here.
-- **Local vs one-shot decisions are not separated by design.** The calibration found no robust
-  I cells. Every cross-source narrowing step is a cheap SQL query that children can replicate
-  themselves, so an ideal one-shot `router` reproduces every optimal organization within δ.
-  Exp 0 can therefore test *adaptive vs fixed* organization (criteria 1–5), but **not** *local
-  and incremental vs central and one-shot*. The latter is H2, and it is informative only about
+- **Local vs one-shot decisions are not separated robustly.** The calibration found no I cells.
+  Every cross-source narrowing step is a cheap SQL query that children can replicate themselves.
+  At the base point, dividing after the SQL does beat the best one-shot division by more than δ on
+  T09 and T15 under `urgent`, but those cells are not robustly P across the perturbation grid, so
+  they are ambiguous and not I. Exp 0 can therefore test *adaptive vs fixed* organization
+  (criteria 1–5), but **not** robustly *local and incremental vs central and one-shot*. The latter is H2, and it is informative only about
   practical behaviour. This is the main recommended extension (EXPERIMENT_STATUS.md).
 - **Few designed P cells** (the 4 class-B `urgent` cells). Criteria 2, 3 and 4a rest on them.
 
@@ -494,9 +523,10 @@ agreement between the developmental organization and the calibrated labels.
     problem. The decomposed form tests exactly the frontier claim: lower cost where division
     pays, no significant quality loss, and no significant cost loss elsewhere. It keeps 0%
     "supported" for every collapse and heuristic policy.
-13. **The `router` comparison moved from criterion 5 to H2.** An ideal `router` equals an ideal
-    `developmental` in every cell of this environment (item 10 of §10). Under criterion 5 over
-    all cells, H would therefore be unsupportable even by a perfect agent. Criterion 5 keeps the
+13. **The `router` comparison moved from criterion 5 to H2.** No cell gives an ideal
+    `developmental` a robust advantage over an ideal `router` (§10). Every robust P cell is reached
+    equally by a one-shot division, and the base-point gaps on T09 and T15 are not robust. Under
+    criterion 5 over all cells, H would therefore be unsupportable even by a perfect agent. Criterion 5 keeps the
     brief's `central` baseline. It drops the brief's "with lower coordination overhead" clause,
     because coordination is already priced inside cost, and dropping it makes the criterion
     fire more easily.
@@ -508,11 +538,39 @@ agreement between the developmental organization and the calibrated labels.
     - Ivel's plant year set to 1990, so that T09's filter changes the answer;
     - gate (d)'s solo floor of 0.3 added, so that reading beats guessing.
 
+15. **Code review before any LLM run.** A five-lens adversarial review of the implementation, with
+    every finding re-verified by a skeptic, led to these fixes:
+    - the step cap is enforced at START (ACC-1);
+    - the caps count in-flight SPAWNs (ACC-2);
+    - WAIT(all) waits for lifecycle notices (ACC-3);
+    - undelivered messages are reported honestly (ACC-4);
+    - one allocation rule is shared by the oracle and `central` (ACC-5);
+    - fees are stamped at START (ACC-6);
+    - the pilot token ratio uses visible text only (VAL-1);
+    - the reserve rule is disclosed, and the oracle uses the same request overhead (VAL-2);
+    - `max_wait_s = 0` means an immediate poll (VAL-4);
+    - replies are cleaned before they are re-sent (VAL-5);
+    - the pilot CV estimate is unbiased (STAT-1);
+    - reports use only planned runs, and resuming is limited to the identical suite (STAT-2);
+    - non-default bootstrap sizes are exploratory (STAT-3);
+    - H2 is also reported over I cells (STAT-4);
+    - the pilot guard covers incomplete logs (STAT-5);
+    - the policy configuration is recorded and parity-checked (STAT-6);
+    - `verify_frozen` checks calibrated values and the prompt fingerprint (SPEC-3);
+    - the catalog shows latencies exactly (SPEC-5);
+    - there are 3 retries after the first attempt (SPEC-6);
+    - the output schema is identical across modes (SPEC-7).
+
+    The disclosure of the reserve rule lengthened the prompt, so the calibration changed and the
+    provisional freeze was redone.
+
 **Change log** (constants and freeze):
 
-- *Provisional freeze, made without a pilot because no API credentials were available:*
-  gate passed with no repair steps, R = 3 (from p = 0.9 and cv = 0.25). See EXPERIMENT_STATUS.md
-  for the sha. The main run refuses a provisional freeze.
+- *Provisional freeze 1, made without a pilot because no API credentials were available:* gate
+  passed with no repair steps, R = 3 (from p = 0.9 and cv = 0.25). Superseded.
+- *Provisional freeze 2, after the code review:* the disclosed reserve rule lengthened the prompt,
+  and mechanical repair took one step (`doc_tok` 0.100 → 0.105 s/token). R = 3. See
+  EXPERIMENT_STATUS.md for the sha. The main run refuses a provisional freeze.
 
 ## 12. Deliverables and freeze
 

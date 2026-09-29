@@ -25,8 +25,7 @@ from devagents.environment.sources import InformationEnvironment
 from devagents.environment.tasks import TASKS, Regime, Route, Task
 from devagents.environment.world import load_world
 from devagents.evals.metrics import metrics_from_events
-from devagents.runtime.resources import estimate_tokens, to_usd
-from devagents.runtime.runtime import Run, RunConfig, fixed_allocation, sec
+from devagents.runtime.runtime import Run, RunConfig
 
 DELTA = 0.03  # SPEC §7.2 label margin (fitness units)
 MIN_BEST_FITNESS = 0.5  # gate (d)
@@ -121,21 +120,19 @@ def oracle_script(task: Task, route: Route, org: Org, extra_work: int):
 
 
 def _spawn(agent, run: Run, assignments: list[list[dict]], objective: str) -> dict:
-    coord, cfg = run.cfg.coord, run.cfg
+    """The oracle runs with RunConfig.fixed_rule_spawns, so the runtime applies the exact §6 central allocation rule;
+    the budget and lifetime written here are placeholders that the runtime ignores."""
     objectives = [objective + "; ".join(r["target"] for q in a for r in q["requests"]) for a in assignments]
-    fees = sum(coord.spawn_fee + coord.transfer_per_token * estimate_tokens(o) for o in objectives)
-    share, life = fixed_allocation(run.ledger.balance[agent.id], fees, len(assignments), agent.deadline - agent.clock,
-                                   cfg.central_budget_share, cfg.central_lifetime_share)
     return {"rationale": "Split the work across agents.", "action": "SPAWN", "wait_for_children": True,
-            "children": [{"objective": o, "context": "", "budget_usd": to_usd(share), "lifetime_s": sec(life)}
-                         for o in objectives]}
+            "children": [{"objective": o, "context": "", "budget_usd": 0.0, "lifetime_s": 1.0} for o in objectives]}
 
 
 def run_org(task: Task, regime: Regime, org: Org, asm: Assumptions, info: InformationEnvironment,
             constants: Constants) -> dict:
     policy = ScriptedPolicy(oracle_script(task, task.routes[org.route], org, asm.extra_work_steps),
                             reasoning_tokens=asm.reasoning_tokens, input_scale=asm.input_scale)
-    cfg = RunConfig(task, regime, "developmental", compute=constants.compute, coord=constants.coord)
+    cfg = RunConfig(task, regime, "developmental", compute=constants.compute, coord=constants.coord,
+                    fixed_rule_spawns=True)
     run = Run(cfg, policy, info)
     run.execute()
     return metrics_from_events(run.log.events)
@@ -182,12 +179,18 @@ def label(meas: dict, constants: Constants, tasks: list[Task] = TASKS) -> dict:
             margins, incr = [], []
             for i in range(n_points):
                 res = {o.name: meas["data"][(task.id, regime.name, o.name, i)] for o in orgs}
+                f = {}
                 for n, m in res.items():
-                    if m["invalid_actions"] or m["cap_hits"] or m["quality"] != 1.0 or m["outcome"] != "answered":
+                    clean = (not m["invalid_actions"] and not m["cap_hits"] and m["quality"] == 1.0
+                             and m["outcome"] == "answered" and "budget_exhausted" not in m["termination_reasons"])
+                    # An organization that cannot complete cleanly at this grid point (e.g. a child starved by the fixed
+                    # allocation rule) is infeasible there. At the base point every organization, and at every point
+                    # every solo organization, must run cleanly: that is gate (f), a guard against oracle-script bugs.
+                    if not clean and (i == base_i or n in solo_n):
                         problems.append(f"(f) {task.id}/{regime.name}/{n} at {meas['points'][i]}: "
                                         f"invalid={m['invalid_actions']} caps={m['cap_hits']} outcome={m['outcome']} "
                                         f"reasons={m['termination_reasons']}")
-                f = {n: _fitness(m, regime) for n, m in res.items()}
+                    f[n] = _fitness(m, regime) if clean else float("-inf")
                 s, d = max(f[n] for n in solo_n), max(f[n] for n in div_n)
                 margins.append(s - d)
                 incr.append(max(s, d) - max(s, max(f[n] for n in first_n)))
