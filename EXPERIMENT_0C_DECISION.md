@@ -1,368 +1,415 @@
 # Experiment 0c: decision memo
 
-**Status: decision memo only.**
-- Nothing here is implemented, no API was called, and no live run was made.
-- Experiment 0b is unchanged, and remains permanently recorded as **UNINFORMATIVE because the preregistered realized
-  manipulation check failed**.
-- Any successor needs its own pre-registration, committed before any of its live output exists. SPEC.md's header
-  forbids weakening §§7–9 after main-suite results exist, so 0b cannot be amended.
+**Status: decision memo only.** Nothing here is implemented, no API was called, and no live run was made.
 
-## Evidence
+- **The 0b verdict is unchanged.** Experiment 0b remains permanently **UNINFORMATIVE because the preregistered realized
+  manipulation check failed** (EXPERIMENT_0B_DIAGNOSTIC.md).
+- **The status log is incomplete.** EXPERIMENT_STATUS.md, which is append-only (SPEC §12), does not yet record the 0b
+  main run or its verdict. That entry is a precondition for any successor.
+- **0b cannot be amended.** SPEC_0B.md's header forbids weakening §§7–9 after any 0b main-suite result exists. Any
+  successor is a new pre-registration, committed before any of its live output exists.
 
-| tag | source |
-|---|---|
-| **[live]** | the experimenter's run of `analysis/exp0b_diagnostic/traces.py` on the 0b main-run and pilot logs (the logs are not in the repository) |
-| **[code]** | the repository at 44da120 |
-| **[sim]** | the LLM-free `analysis/exp0b_diagnostic/offline.py` in the real runtime modes, at frozen 0b constants |
+## Decision summary
+
+1. **What 0b established.**
+   - The failed (v) is fully accounted for by live `central` choosing one child in every run. The specification let the
+     LLM choose that topology, while the calibration and (v) assumed the best one-shot division; the LLM chose one
+     child. No code defect was found.
+   - Descriptively, and with no verdict weight: the treatment never attempted SPAWN.
+2. **Is the one-QUERY affordance materially misleading?**
+   - **As a description, no.** The prompt states that sources are processed "one after another", and it is not a bug.
+   - **As salience, it may matter.** It makes the solo plan the cheapest-looking plan to write, while its time cost is
+     left to arithmetic.
+   - Whether it *materially* caused non-division is **unidentified**.
+3. **Should the unchanged `developmental` be tested again?**
+   - **Yes, once, and only as the 12-run arm of a small Stage 1.** A test of criterion 2 needs a sample concurrent with
+     a validated manipulation, and 0b's data cannot be reinterpreted.
+   - The expected outcome (criterion 2 fires) is declared in advance.
+4. **Is another 360-run benchmark justified?** **No, not now.** Only after a Stage 1 GO, which is unlikely.
+5. **Recommended next experiment: option B.** A small clean replication with a scripted `central` and an unchanged
+   `developmental`.
+6. **Size:**
+   - 4 runs of a held-out instrument pilot, plus **36 Stage-1 runs**: 40 in all;
+   - ≈ 160–210 LLM calls, about 16–21% of 0b's 988.
+7. **Go/no-go:** see §9.
+
+**Labels.**
+- In §1, A–D are the brief's diagnosis categories. The diagnostic's C ("substantive, qualified") is D here, and C here
+  is the interface question.
+- The options in §§7–9 are:
+  - **A:** stop;
+  - **B:** Stage 1 of this memo;
+  - **C:** a new full benchmark;
+  - **D:** the information-dependent experiment;
+  - **E:** one pre-registered representation experiment.
+- "Path A" and "Path B" in §3 are options B and E.
+
+**Evidence.**
+- **[live]** means the experimenter's run of `analysis/exp0b_diagnostic/traces.py` on the local 0b and pilot logs.
+  Those logs are not in this repository.
+- **[code]** means the repository at 704fe5f.
+- **[sim]** means the LLM-free `offline.py` in the real runtime modes, at frozen 0b constants and the live token
+  statistics (r 2.0277, 45 reasoning tokens) unless marked "frozen" (r 2.0052, 36).
 
 **[live] facts:**
-- 360/360 runs completed, and the evaluator and an independent recomputation agree.
-- Validity (v) failed: on B-urgent, `central` scored 0.2830 against 0.3552 for `single`.
-- `central` used exactly one child in every main-run and every pilot run. In the P cells that one child read all 6 or 8
+- **Run and verdict.** 360/360 runs completed, and the evaluator and an independent recomputation agree. Validity (v)
+  failed: on B-urgent, `central` scored 0.2830 against 0.3552 for `single`.
+- **`central`.** It used one child in every main-run and pilot run. In the P cells that child read all 6 or 8
   documents.
-- `developmental` and `router` made zero SPAWN attempts across all 90 runs each, and no SPAWN was rejected.
-  - In the P cells the root makes one QUERY naming every document ("Read all six region reports in one query.").
-- Pilot task X2 urgent: `single` ≈ 0.334, `central` ≈ 0.241.
-- Main-run token statistics: 988 LLM calls, r = 2.0277, median reasoning 45 tokens. The frozen values are 2.0052 and 36,
-  so both lie inside the calibration grid's range.
+- **`developmental` and `router`.** Zero SPAWN attempts across 90 runs each, none rejected. In the P cells the root
+  makes one QUERY naming every document ("Read all six region reports in one query.").
+- **Pilot X2 urgent.** `single` ≈ 0.334, `central` ≈ 0.241.
+- **Token statistics.** 988 LLM calls; r 2.0277 and a median of 45 reasoning tokens, both inside the calibration grid's
+  range.
+- **Closed flag.** With zero spawns, the twin and dissociation contrasts are exactly 0, so the diagnostic's §2
+  consistency flag is closed.
+- **Not reported.** The rationale-keyword census from `traces.py` was not among the reported facts. The diagnostic's
+  pre-declared reading of it (§8) therefore cannot yet be applied, and this memo does not substitute its own.
 
 ## 1. Final diagnosis of 0b
 
 | | finding | confidence |
 |---|---|---|
-| **A. Hard implementation defect** | **None found.** See the note below the table. | high |
-| **B. Oracle/live baseline mismatch** | **Confirmed, and sufficient on its own for the failed (v).** See below. | high |
-| **C. Semantic/action-interface problem** | **Not a defect; a possible contributor whose causal role cannot be identified.** See the one-QUERY affordance below. | low–medium (as a contributor) |
-| **D. Substantive model-policy behaviour** | **Confirmed as a description, with no verdict weight.** See below. | high as a description; unknown as to cause |
+| **A. Hard implementation defect** | None found. See below. | high |
+| **B. Oracle/live baseline mismatch** | **Confirmed, and sufficient for the failed (v).** See below. | high |
+| **C. Semantic/action-interface problem** | **Not a defect; a possible contributor whose causal role cannot be identified.** See the one-QUERY affordance below. | low–medium (as contributor) |
+| **D. Substantive model-policy behaviour** | **Confirmed descriptively, with no verdict weight.** See below. | high as description; cause unknown |
 
-**A.** Every `central` SPAWN succeeded, no SPAWN was ever rejected, and no code limits the number of children
-(`runtime.py:452–457`). The live token statistics match the calibration, and the independent recomputation agrees with
-the evaluator.
+**A.** No SPAWN was rejected, and the recomputation agrees with the evaluator. No code reduces the number of children
+the LLM lists: the runtime creates exactly `len(children)` agents (`runtime.py:452`). The caps (1–8 children at the
+root, 9 live agents; `runtime.py:396, 455–458`) never bind for a one-child SPAWN.
 
 **B.**
-- **What was specified.**
-  - SPEC §6 lets the LLM choose `central`'s list of children.
-  - §7.3 (the criteria check) assumes `central` = the best one-shot division.
-  - (v) is computed from the live runs.
-  - This inconsistency has been in SPEC since commit 2851d2d.
-- **What live `central` did.** It chose one child in 100% of runs. One child cannot beat `single` [sim]:
-  - at the live token statistics, 0.279 against 0.343 for `single`, with the calibrated fan-out at 0.548;
-  - live `central` scored 0.2830.
+- **The specification.** SPEC §6 lets the LLM choose `central`'s list of children. §7.3 and the synthetic criteria
+  check assume the best one-shot division, and (v) uses the live runs. This has been so since 2851d2d.
+- **The live runs.** Live `central` chose one child every time, and one child cannot beat `single` [sim]: 0.279
+  against 0.343, while the calibrated fan-out scores 0.548. Live `central` scored 0.2830.
 
 **D.**
-- **Never divided.** Neither `developmental` nor `router` divided. For `developmental`, zero spawns in 90 runs gives a
-  one-sided 95% upper bound of 0.033 on the per-run spawn probability, and zero parallel runs in the 12 P-cell runs
-  gives 0.221.
-- **Could emit SPAWN.** The model can produce the action, since forced `central` did so every time. Forced to divide,
-  it delegated rather than parallelized.
-- **Not a verdict.** Because (v) failed, this observation is not a test of H.
+- **Never divided.** `developmental` and `router` never divided. If runs were independent with a common rate, the
+  one-sided 95% upper bounds would be 0.033 per run (0 in 90) and 0.221 for P-cell parallelism (0 in 12).
+- **Could emit SPAWN.** The model can emit SPAWN: forced `central` did so every time, but delegated rather than
+  parallelized.
+- **Not a test of H.** Because (v) failed, none of this tests H.
 
-**The one-QUERY affordance.** QUERY takes up to 10 requests, and within one agent the sources are processed one after
-another: elapsed time adds up (`runtime.py` sums the per-source latencies). Different agents process concurrently.
-- **Is it a bug?** No. The prompt says so explicitly: "They are processed one after another" and "Different agents act
-  concurrently". SPEC §10 declares single-agent parallel tool calls out of scope. The one-QUERY plan is also the
-  oracle's *optimal solo plan*, and live `single` performs at the oracle-solo level.
-- **What is uneven is salience, not truth.** One QUERY makes the solo plan two decisions against 8–10 for a division,
-  and the prompt foregrounds per-decision cost ("The decision itself costs money and simulated time"; "Your entire
-  conversation so far is re-read, and paid for, on every step"). The time cost that outweighs this is left to arithmetic
-  from the catalog: about 336–351 s, or about 0.54–0.56 of the score under `urgent`. That document processing overlaps
-  across agents is stated only generically.
-- **What the evidence shows.** The pattern — a batch read in developmental and router, and one child reading the whole
-  batch in forced `central` — fits a model that treats a multi-source QUERY as one unit of work and does not see agent
-  concurrency as a way to save time. It also fits a model that never weighed time at all.
-- **What 0b cannot tell apart.** One-sentence rationales at a median of 45 reasoning tokens cannot distinguish those
-  two, and a missing mention of time is weak evidence. The affordance never varied in 0b, so its causal role is
-  **unidentified**.
-- **Conclusion.** It is a plausible salience hazard: one action *looks like* batching even though elapsed time is
-  additive. It is not a misleading statement and not a defect.
+**The one-QUERY affordance.**
+- **The semantics.** A QUERY takes up to 10 sources. Within one agent they are processed sequentially, and elapsed time
+  is additive; agents run concurrently.
+- **Accurate, not a bug.** The prompt says both. SPEC §10 declares single-agent parallel calls out of scope. The
+  one-QUERY plan is the oracle's *optimal solo plan*, and live `single` performs at oracle-solo level.
+- **Uneven salience.**
+  - The solo plan is two LLM calls in all, against 8–10 system-wide for a division.
+  - The prompt foregrounds per-decision cost.
+  - The time cost that outweighs this must be computed from the catalog: about 336–343 s of document processing,
+    about 0.54–0.55 of the score under `urgent`.
+  - That document processing overlaps across agents is said only generically.
+- **What the pattern fits, and what it cannot tell.** The pattern — batch reads, and forced `central` handing the whole
+  batch to one child — fits a model that treats one QUERY as one unit of work. It equally fits a model that never
+  weighed time. One-sentence rationales cannot tell these apart, and the affordance never varied.
+- **Verdict.** A plausible salience hazard: one action *looks like* batching while time adds up. It is not a defect,
+  and its causal role is unidentified.
 
 ## 2. What 0b established, and what it did not
 
-**It established:**
-1. The failed (v), and hence UNINFORMATIVE, is explained by the realized one-child `central` topology. The cause is a
-   specification inconsistency, not a runtime defect.
-2. **Descriptively** (no confirmatory weight): at effort `low` with the frozen prompt, the frozen model never attempted
-   SPAWN as `developmental` or `router`, including in the P cells, where the calibrated division beats solo by about 0.2
-   fitness [sim]. Forced to divide, it chose one child every time.
-3. The solo physics behaved as calibrated: live `single` ≈ oracle solo, and the token statistics are within the grid's
-   range.
-4. The pilot already carried the warning, but the protocol had no check of realized organizations.
-5. The synthetic criteria check established the evaluator's power and specificity only under idealized baselines.
+**It established** the explanation of the failed (v) (§1 B), the descriptive behaviour in §1 D, that the solo
+physics behaved as calibrated (live `single` ≈ oracle solo), and that the pilot already carried the warning: no step
+inspected realized organizations.
 
-**It did not establish:**
-
-| claim | status |
+| question | answer |
 |---|---|
-| "The current low-effort policy fails to discover division" | Narrowly, as description only: *it did not divide* under this model, effort, prompt and task set. "Fails to discover" implies a search we cannot see. |
-| "Adaptive architecture has no value" | **No.** In simulation division is worth about +0.2 in the P cells. It is untested live, because **no live run in the pilot or in 0b had ≥ 2 children**. |
-| "The lifecycle mechanism is wrong" | **No.** `developmental` never spawned, so its SPAWN, WAIT, allocation, lifetime and termination decisions were never exercised. |
-| "The prompt representation is insufficient" | **Not attributable.** Representation, effort and model are confounded, and none was varied. We can say only that *this* combination did not elicit division. |
-| "The `central` baseline was invalidly operationalized" | **Yes, narrowly.** It was operationalized inconsistently with the calibration and the manipulation check that assume it. An LLM-chosen central is a legitimate baseline for some question, but not for (v) as written. |
-| H falsified or NOT SUPPORTED; why the policy did not divide; any generalization; anything about information-dependent restructuring | **No.** |
+| The current low-effort policy "fails to discover division"? | Only as description: *it did not divide* under this model, effort, prompt and task set. "Discover" implies a search we cannot see. |
+| Adaptive architecture has no value? | **No.** 0b never exercised an adaptive organization. By design [sim], division beats solo by ≈ 0.2 in the P cells, with no designed edge over a one-shot router (I = 0). None of this was tested live: **no pilot or 0b run had ≥ 2 children.** |
+| The lifecycle mechanism is wrong? | **No.** `developmental`'s SPAWN, WAIT, allocation, lifetime and termination decisions were never exercised. |
+| The prompt representation is insufficient? | **Not attributable.** Representation, effort and model are confounded, and none was varied. |
+| The `central` baseline was invalidly operationalized? | **Yes, narrowly.** It was inconsistent with the calibration and the check that assumed it. SPEC §6 is itself ambiguous: it says "1–K children" but calls the organization a "fixed decomposition". |
+| H falsified; why the policy did not divide; generalization; information-dependent restructuring? | **No.** |
 
 ## 3. Should the developmental treatment remain unchanged?
 
-**Path A: clean replication with a scripted `central`.**
-- **Is it valid?** Yes, on the decisive stratum:
-  - with `central` fixed by construction, the urgent part of (v) tests whether the designed trade-off materializes
-    with live agents;
-  - criterion 2 tests the treatment.
-- **Expected result.** Criterion 2 fires. The probability that it does not is ≤ 0.031 at 0b's pessimistic P-cell
-  bound, and about 0 at the all-runs bound. The pre-registration must say so.
-- **Is it still the right next test? Yes, but only small** (§6):
-  - its one change is fixed by text written before 0b (§7.3), so it cannot be tuning;
-  - it validates the instrument every successor needs, which is genuinely uncertain because live multi-child division
-    was never observed in the pilot or 0b;
-  - it gives the original H its only valid test.
-- **The honest objection.** Its treatment outcome is almost known, so its developmental arm buys procedural closure,
-  not much new knowledge.
+**Path A (= option B): scripted `central`, everything else unchanged.**
+- **Valid for criterion 2, a necessary condition for H.** The urgent part of (v) then tests whether live agents realize
+  the designed trade-off, and criterion 2 tests the treatment. It cannot yield SUPPORTED or a full §8 verdict.
+- **Not neutral.** The baseline change was chosen *after* (v) failed, and it makes that check pass by construction in
+  simulation.
+- **What limits the tuning.** Everything about it is fixed by artefacts committed before any 0b main-run output (§4),
+  and it cannot make H easier to support: the treatment is unchanged, and the expected outcome is a futility stop.
+- **Expected result: criterion 2 fires.**
+  - With independent runs, P(it does not fire) ≤ 0.031 at 0b's P-cell bound.
+  - The runs are clustered in 4 cells from 2 templates. If behaviour were fixed per cell, 0 of 4 P cells bounds it
+    only at ≤ 0.73.
+  - The expectation therefore rests on the uniformity of 0b's behaviour, not on the i.i.d. figure.
+- **Still the right next test, if small.** It checks, for about 150 calls, the instrument any successor on these cells
+  needs, and it gives criterion 2 its first valid test.
 
-**Path B: new representation.** Each option, classified:
+**Path B (= option E): a changed representation.**
 
-| option | classification | tuning risk |
-|---|---|---|
-| state that source processing by different agents overlaps in time | a clarification of a rule stated only generically, but chosen *because* of 0b → **new hypothesis** | lowest of the set |
-| show the estimated elapsed time of an N-source QUERY (or per-document seconds) | a derived restatement, but scaffolding in effect, because it makes the key consequence salient → **new hypothesis** (legibility) | moderate |
-| expose predicted cost and time of candidate actions or organizations | **policy scaffolding**. It borders on suggesting an organization, against the pre-registered rule that the prompt "never suggests an organization", and tests choice from a menu. | high |
-| raise reasoning effort | **treatment change** (deliberation) → new hypothesis. It also changes the economics, since reasoning tokens are priced and the grid covers 18–72, so a recalibration is needed. | moderate–high |
-| decouple QUERY batching from concurrency | **environment change**. Capping QUERY at one source makes solo costlier and widens P margins, which makes it the most tuning-prone. Making a batch concurrent removes the P-cell trade-off, which SPEC §10 puts out of scope. | high |
+| option | classification |
+|---|---|
+| state that source processing by different agents overlaps in time | a clarification of a generically stated rule, but chosen *because* of 0b → **new hypothesis** (lowest tuning risk) |
+| show the estimated elapsed time of an N-source QUERY | restates a derivable quantity, but acts as scaffolding by making the key consequence salient → **new hypothesis** |
+| expose the predicted cost and time of candidate actions | **policy scaffolding**. It borders on suggesting an organization, against the design rule that the prompt "never suggests an organization" (`prompts.py:3–5`). |
+| raise reasoning effort | **treatment change** → new hypothesis. It is part of the audit record, so it applies to every mode, and it moves reasoning tokens outside the calibrated 18–72 range → recalibration. |
+| decouple QUERY batching from concurrency | **environment change**. One source per QUERY makes solo costlier, which is the most tuning-prone option. Concurrent batches remove the P-cell trade-off, which SPEC §10 puts out of scope. |
 
-Only a factual error in what the agent is told would count as pure instrumentation clarification, and none was found.
+No factual error was found in what the agent is told, so none of these is a pure instrumentation fix. Using any of them
+after 0b is tuning if it is presented as a repair or iterated.
 
-**Would using these after 0b be tuning?** Yes, if presented as a repair or a replication, or if iterated.
-
-**Honest framing** is a separately pre-registered hypothesis, for example: "when the time consequences of actions are
-legible, without any suggested organization, the frozen model's organization tracks the value of time." It requires:
-- exactly one variant text, fixed in advance;
+**Honest framing** is a separately pre-registered hypothesis ("when the time consequences are legible, without a
+suggested organization, the frozen model's organization tracks the value of time"). It requires:
+- one variant text, fixed in advance;
 - a concurrent arm with the treatment unchanged;
-- a live-validated manipulation (a scripted `central`);
-- the relaxed twins, to detect always-spawn collapse;
-- 0b and 0c declared as its motivation, never pooled with it, and never reported as support for H.
+- a scripted-`central` manipulation check;
+- the relaxed twins and the dissociation cells (T06, T13, T14 urgent), to detect always-spawn and surface-cue
+  spawning;
+- no pooling with 0b or 0c, and never reporting it as support for H.
 
-A positive result would show that the model divides when the consequences are made legible, not that it derives
-division unaided.
-
-**Decision: the treatment stays unchanged in the next step.** A changed representation is a later, separate decision
-(§9).
+A positive result would show that the model divides when the consequences are legible, not that it derives division
+unaided. **The treatment therefore stays unchanged in the next step.**
 
 ## 4. `central` baseline redesign
 
-**The smallest defensible definition (scripted `central`).**
-- **What code generates.** The root's first action is generated by code, not the LLM: a SPAWN with forced wait.
+**Scripted `central`: what code generates.**
+- **The first action.** The root's first action is generated by code as a SPAWN with forced wait.
 - **Children and partition.**
-  - k = that cell's `router_div` fan-out in `data/exp0b/frozen.json`: 3 for T01 and T07, 4 for T04 and T10.
-  - Documents are split round-robin over the route's document ids in frozen order (`docs[i::k]`).
-- **Objective template**, fixed and with empty context: "Find the facts needed for: <question> Read only the sources
-  named in this objective: <ids>".
-- **Unchanged.**
-  - Allocation and lifetime use the existing fixed rule (an equal share of 50% of the balance after fees; 60% of the
-    remaining time).
-  - Every later root step and every child is a live LLM call, with the unchanged prompts, schema, MODE RULES line
-    (still true as written), constants, model and effort.
+  - k and the route come from the cell's `router_div` in `data/exp0b/frozen.json` (sha 0d10865d…): `fanout3@r0` for
+    T01 and T07, `fanout4@r0` for T04 and T10.
+  - The documents are split round-robin (`docs[i::k]`, `calibrate.py:98`) in the route's order in
+    `devagents/environment/tasks.py`.
+- **Objective template.** The oracle's template (`calibrate.py:108`): "Find the facts needed for: <question> Read only
+  the sources named in this objective: <ids>", with empty context.
+- **Rationale.** The oracle's exact text, "Split the work across agents."
+- **Allocation.** The existing fixed rule: an equal share of 50% of the balance after fees, and 60% of the remaining
+  time.
 - **The scripted step is charged as a decision.**
-  - It is priced as the calibration prices oracle steps, at the **frozen** assumptions (r 2.0052, 36 reasoning
-    tokens), pre-declared so that there is no fork. That includes its latency.
-  - It is written into the root's transcript with a fixed neutral rationale, so later steps re-read it and pay for it.
-  - Otherwise `central` would get a free decision.
+  - It is priced as the calibration prices oracle steps, at the **frozen** assumptions, pre-declared.
+  - That is marginally cheaper than a live step, by well under 0.01 fitness.
+  - The step is written into the root's transcript, so later steps re-read it and pay for it.
+- **Unchanged.** Everything else is live and unchanged: the later root steps, the children, the prompts (the MODE RULES
+  line stays true), the model and the effort.
 
-**How it fares:**
-- **Matches Baseline B's intent?** Yes, and more literally than the LLM version: SPEC §6 calls it a "fixed
-  decomposition, decided before any look at the data".
-- **Matches the criteria check?** Yes, exactly: in these cells `central` = `router_div`.
-- **Unfair future information?**
-  - No. k and the partition come from a file frozen *before any 0b main-run output existed*.
-  - The documents are identifiable at t0 from the question and the catalog ("Across the six regions …").
-- **Equal resources?** Yes: the same budget, deadline, value of time, prices, caps, catalog and audit record, and the
-  same allocation rule.
-- **Strength.** It is deliberately the strongest fixed decomposition, the designer's best k. That is appropriate for
-  (v). It must not be read as a contest between two LLM policies.
+**Checks:**
+- **Baseline B's intent.** It adopts §7.3's reading of the ambiguous §6: "fixed decomposition, decided before any look
+  at the data". That reading was chosen after (v) failed.
+- **The synthetic criteria check.** It matches exactly: `central` = `router_div`.
+- **Future information.** None. Every input was committed before any 0b main-run output. The documents are
+  identifiable at t0 from the question and the catalog.
+- **Equal resources.** Yes: the same budget, deadline, value of time, prices, caps and catalog, and the same allocation
+  rule.
+- **Strength.** It is deliberately the strongest fixed decomposition. It is not a contest between two LLMs.
 
 **What the topology may use:**
 - the question;
 - the catalog;
-- the regime (the brief shows it);
-- design constants frozen before any live output: k, the route and the partition rule from `frozen.json`, and the
-  template.
+- the value of time that the brief shows;
+- the constants above.
 
-**What it may not use:** SQL strings, SQL results (such as which candidates qualify), document contents, answers, or
-anything observed in any live run.
+**What it may not use:** SQL strings, SQL results (for example which candidates qualify), document contents, answers,
+or anything observed in a live run.
 
-**Leak warning for any full benchmark [code].** Copying the oracle's objective text (`calibrate._spawn`) would leak
-information in **16 of 30 cells**:
-- in T03, T09 and T15 (`atstart`), the objectives name only the qualifying candidates, which is post-SQL information,
-  plus the exact SQL;
-- in T05, T06, T11, T13 and T14, they carry the exact SQL.
+**For any full benchmark.** Copying the oracle's objectives leaks SQL strings or post-SQL candidate lists in 16 of 30
+cells: T03, T09 and T15 (`atstart`), and T05, T06, T11, T13 and T14. Those cells need a template that uses only t0
+information, and an offline recalibration. The P cells are leak-free.
 
-Those cells need a template that uses only t0 information, followed by an offline recalibration, before any freeze. The
-4 P cells are leak-free.
-
-**Implementation constraints, to settle in the pre-registration (not implemented here):**
-- Audit parity (iii) requires one policy configuration across modes, so the scripted step must be mode-dependent
-  behaviour of the same policy.
-- The existing report pipeline would mark a P-only stage UNINFORMATIVE by construction, so the stage needs its own
-  small pre-registered analysis, tested on synthetic records.
-- "Read only" is an instruction, not an enforced permission, so realized organizations must be logged and checked.
+**Audit parity.** The scripted first step is a declared asymmetry.
+- Record it in the policy configuration (for example `central_first_step: "scripted"`).
+- Evaluate parity (iii) on every other field. Do not hide it inside a shared policy class.
 
 ## 5. Router in the next narrow test
 
-**Exclude it from Stage 1, and declare the deviation.** `router` never enters criteria 1–5 or (v). It enters only H2,
-which "never changes the §8 verdict", and the calibration found no I cells.
-
-In a full benchmark, `router` runs *can* make a verdict UNINFORMATIVE through audit parity (iii) and completion (iv),
-but they cannot flip supported versus not supported. No Stage 1 decision depends on them.
-
-**Is removing it after observing results acceptable?** The exclusion rests on facts that were pre-registered before 0b
-ran (H2 only, I = 0), not on 0b's router result. Any later full benchmark restores `router` exactly as pre-registered.
-
-For the information-dependent experiment, the one-shot comparator should itself be scripted and use only t0
-information, for the same reason as `central`: a live router that never spawns is a degenerate comparator.
+**Exclude it from Stage 1, and declare the deviation.**
+- **Its role.** `router` enters neither criteria 1–5 nor (v), only H2, which "never changes the §8 verdict", and the
+  calibration found no I cells.
+- **In a full benchmark.** Its runs can make a verdict UNINFORMATIVE through parity (iii) and completion (iv), but
+  cannot flip it.
+- **Timing.** These grounds were pre-registered before 0b. The decision is nevertheless taken after router's result
+  was seen, and it is declared as such.
+- **Restoration.** A full benchmark restores `router` exactly as pre-registered.
+- **Scripting it** for a later experiment would change H2's meaning, and would be a new hypothesis.
 
 ## 6. Staged design
 
-**Stage 0: offline, no API calls.** Before any live call:
-- scripted `central` reproduces the per-cell offline fitness of the frozen organizations to within ±0.005;
-- the prompt fingerprint (53790f89…) and audit parity hold;
-- the objectives contain only document ids identifiable at t0;
-- a fake-client dry run of all 36 runs completes;
-- the Stage 1 analysis passes on synthetic records;
-- the pre-registration is committed and its SHA recorded.
+**Stage 0: offline, no API.**
+- The scripted `central` reproduces offline per-cell fitness to within ±0.005.
+- `verify_frozen` passes.
+- The prompt fingerprint is 53790f89…, and parity holds on every field except the declared one.
+- The objectives contain only document ids identifiable at t0.
+- A fake-client dry run of every planned run completes.
+- A dedicated Stage 1 analysis passes on synthetic records. The existing report would mark a P-only stage UNINFORMATIVE
+  by construction.
 
-**Stage 1: live.**
+**Stage 0-pilot: live, held-out.**
+- **The runs.** Pilot task X2, urgent, `single` and scripted `central`, R = 2: **4 runs**, ≈ 18 calls.
+- **The fan-out.** k = 3, X2's best fan-out at 0b constants [sim, frozen]: 0.557, against 0.355 for `single` and 0.291
+  for one child.
+- **Purpose.** It implements the diagnostic's §12 change: verify realized organizations before freezing.
+- **Gate.** Stage 1 is committed only if every pilot `central` run creates its k children and each child reads its
+  assigned documents.
+- **Revisions allowed.** Implementation bugs and the template's wording may be revised on X2 only, and only before
+  Stage 1 is committed.
 
-| design | value |
+**Stage 1: live, confirmatory, fixed size.**
+
+| | |
 |---|---|
-| cells | the 4 P cells: T01, T04, T07 and T10, urgent (= P = P_urgent = B-urgent) |
+| cells | T01, T04, T07 and T10, urgent (= P = P_urgent = B-urgent) |
 | modes | `single`, scripted `central`, unchanged `developmental` |
 | repeats | R = 3, in seeded shuffled blocks |
 | runs | **36** |
-| LLM calls | ≈ 144: 24 `single`, 96 `central` (children × 2 plus one live root step), 24 `developmental`. Up to ≈ 190 with extra steps, i.e. ≈ 15–19% of 0b's 988. |
+| LLM calls | ≈ 144: 24 + 96 + 24. `central` makes k children × 2 plus one live root step. Up to ≈ 190 with extra steps. |
 
-**Why R = 3.** It is the pre-registered R, and it reproduces criterion 2's statistic exactly.
-- Criterion 2 does not fire iff at least 6 of 12 P-cell runs are parallel.
-- The urgent part of (v) then tolerates two more wrong `central` answers than `single` (margin +0.205 [sim]; a wrong
-  answer costs 1.0 in that run, i.e. 0.083 of the mean).
-- Assuming `single` is correct, (v) passes with probability ≈ 0.98, 0.89 and 0.56 at a 5%, 10% and 20% `central` error
-  rate.
-- R = 2 is the floor for (v) alone, and R = 5 buys little.
+**Why R = 3.**
+- **It is the pre-registered R, and it reproduces criterion 2 exactly.** The criterion fires iff parallel_rate(P) <
+  0.50, the mean of the per-cell parallel fractions (`analysis.py:116–117`). With all 12 runs complete, that means
+  fewer than 6 of 12.
+- **It tolerates two extra wrong `central` answers.** The urgent part of (v) survives two more wrong `central` answers
+  than `single` (margin +0.205; each wrong answer costs 0.083 of the mean). If `single` is always right, P(pass) ≈ 0.98,
+  0.89 and 0.56 at a 5%, 10% and 20% `central` error rate.
 
-**Is staging valid?** Yes, as a pre-declared, binding **futility-only** gate:
-- Criterion 2 depends only on these 12 `developmental` runs, and it is necessary for SUPPORTED. So stopping on it
-  cannot inflate a later false SUPPORTED.
-- Its stopping probabilities are the criterion's own operating characteristic, not added error: 0.387 at a true rate
-  of 0.5, 0.158 at 0.6, 0.039 at 0.7, 0.004 at 0.8, and ≈ 0 for an ideal policy.
-- Stage 1 data are **never pooled** into a later verdict, and 0b data never enter any gate. A combined 0b + 0c figure
-  may be reported descriptively only.
+**Validity of staging.** It is a pre-declared, binding validity-and-futility gate.
+- Criterion 2 is necessary for SUPPORTED, so stopping on it can never create a false SUPPORTED.
+- Because Stage 1 is **never pooled** into a later verdict, a policy must pass criterion 2 twice. So the gate *adds*
+  false-futility risk near the threshold:
 
-**What Stage 1 can conclude:**
-- whether live agents realize the designed urgent trade-off when division is enforced (its size, and a cost/quality
-  decomposition);
-- whether realized organizations match the calibration;
+| true parallel rate | P(pass) with one test | P(pass) with both stages |
+|---|---|---|
+| 0.5 | 0.61 | 0.38 |
+| 0.6 | 0.84 | 0.71 |
+| 0.7 | 0.96 | 0.92 |
+| ideal policy | ≈ 1 | ≈ 1 |
+
+- This cost is accepted because 0b makes a rate ≥ 0.5 unlikely.
+- 0b data enter no gate.
+
+**Stage 1 can conclude:**
+- whether live agents realize the designed at-start fan-out trade-off in these 4 cells, with a cost/quality
+  decomposition;
 - whether the unchanged treatment divides where division demonstrably pays;
 - whether H can still be supported by this design.
 
-**What it cannot conclude:**
-- a full §8 verdict, because the relaxed and A parts of (v) and criteria 1, 3, 4 and 5 are not evaluated;
-- causes;
-- generality beyond 4 cells, 2 task templates, one model and effort `low`;
+**It cannot conclude:**
+- a §8 verdict (the relaxed and A parts of (v), and criteria 1 and 3–5, are unevaluated);
+- causes, or generality beyond 4 cells, 2 templates, one model and effort `low`;
 - H2;
-- anything about information-dependent restructuring.
+- anything about division after mid-task information.
+
+**Stage 2 (only on GO) = option C.** A fresh, separately pre-registered full benchmark: 30 cells and 4 modes, the
+t0-only template, and R from a rerun criteria check (≈ 360 runs). No Stage 1 data are pooled.
 
 ## 7. Stop conditions (pre-declared, evaluated in order)
 
-1. **Completeness.** Fewer than 2 completed runs in any cell × mode, or under 90% per mode after the standard
-   infrastructure retries → **UNINFORMATIVE**. No redesign.
-2. **Instrument integrity.** Every scripted-`central` run must create k children with overlapping QUERY processing. If
-   2 or more of 12 do not → **UNINFORMATIVE**.
-   - This check is needed because the mean alone would pass even if about 76% of runs degraded to one-child fitness.
-3. **Manipulation (strict, as pre-registered).** Validity requires all of the following:
-   - mean fitness of scripted `central` > mean fitness of `single` over the 12 + 12 runs;
-   - `single` accuracy ≥ 0.75 on these cells;
-   - audit parity holds;
-   - `single` hits a cap in ≤ 5% of runs.
+0. **Fixed size.**
+   - The 4 + 36 planned runs are fixed. Nothing is added or topped up after any output, except SPEC §8's 3
+     infrastructure retries.
+   - k, the partition, the template and the rationale are never revised on T01, T04, T07 or T10.
+1. **Completeness.** At least 2 completed runs per cell × mode, and at least 90% per mode. Otherwise **UNINFORMATIVE**.
+   An identical repeat under the same pre-registration is allowed once.
+2. **Identity and validity.** Any of the following makes the run **UNINFORMATIVE**, with no statement about the
+   trade-off:
+   - on any run, the logged model identifier, effort, structured flag, prompt fingerprint, frozen sha or policy
+     configuration differs from 0b's (apart from the declared field);
+   - `single` accuracy is below 0.75 (fewer than 9 of 12 correct);
+   - any `single` cap hit (1 in 12 already exceeds 5%).
+3. **Instrument integrity (runtime level).**
+   - A scripted-`central` run is *intact* iff the scripted SPAWN is accepted, all k children are created with their
+     assigned objectives, and no child is starved or stopped by a runtime cap.
+   - If 2 or more completed runs are not intact → **UNINFORMATIVE (defect)**. Only the bug may be fixed, and then
+     Stage 0 and the pre-registration are repeated.
+   - What children actually read is *behaviour*: it stays in the sample and counts in (4). The number of runs in which
+     every child read exactly its assignment is reported, because the mean alone would still pass with up to 9 of 12
+     runs degraded to one-child fitness.
+4. **Manipulation: the B-urgent part of SPEC §8 (v), threshold unchanged.**
+   - If mean fitness(scripted `central`) ≤ mean fitness(`single`) over the completed B-urgent runs → **STOP.**
+   - The label is decided by which component explains most of the shortfall: "live aggregation quality fails" (lower
+     `central` accuracy), or "the designed time/money trade-off is not realized" (cost/time).
+   - Either way there is no Stage 2, and no successor on these cells without a new pre-registration.
+5. **Futility.** If the run is valid and parallel_rate(P) < 0.50 (≤ 5 of 12 when all complete; zero SPAWN attempts is
+   the expected case) → **STOP.**
+   - Label: "Under a live-validated B-urgent manipulation, criterion 2 (never-spawn collapse) fires for the frozen
+     treatment. Under SPEC §8 this criterion alone would make H NOT SUPPORTED in a valid full run. The full validity
+     set and §8 verdict were not evaluated." Never "H refuted".
+6. **GO.** If the run is valid and parallel_rate(P) ≥ 0.50 → Stage 2 (option C).
 
-   If the manipulation fails → **STOP.** The designed trade-off is not realized with live agents. There is no Stage 2,
-   and neither D nor E on this environment without a redesign, which would be a new pre-registration. Report the
-   cost/quality decomposition.
-4. **Futility.** If the stage is valid and `developmental` is parallel in **≤ 5 of 12** P runs (criterion 2 fires) →
-   **STOP.**
-   - The pre-declared label: "Under a live-validated urgent manipulation, criterion 2 fires. H is not supported for
-     the frozen treatment on the decisive P stratum. The full §8 verdict was not evaluated." Never "H refuted".
-   - The same conclusion follows for zero SPAWN attempts, which is the expected outcome.
-   - No full benchmark.
-5. **GO.** If the stage is valid and `developmental` is parallel in **≥ 6 of 12**:
-   - first audit for treatment drift, since the result would contradict 0b;
-   - then write a fresh full pre-registration: all 30 cells, all 4 modes, a leak-free t0-only `central` template
-     recalibrated offline, R from a rerun criteria check, and no pooling.
-
-**Research-direction stop rules:**
-- **If (3) fails.** Reconsider the mechanism-level assumption that live children can read, report and be aggregated at
-  the calibrated cost before building anything on this environment.
-- **If (4) fires.** The primitive-decision line under the neutral representation is closed. At most **one** further,
-  separately pre-registered representation experiment (E, §3) may follow. If it too fails criterion 2 under a
-  live-validated manipulation, abandon LLM-emergent division with this model class and effort, and do not proceed to
-  the information-dependent experiment with LLM lifecycle policies.
-- **Never** iterate prompt variants on these 4 cells.
+**Research-direction rules:**
+- **After (4).** Before anything is built on this environment, reconsider the mechanism assumption that live children
+  can read and report, and be aggregated, at the calibrated cost.
+- **After (5).** The primitive-decision line under the neutral representation is closed. At most **one** option-E
+  experiment may follow, and its variant is the only prompt variant ever run on these cells.
+  - If it also fails criterion 2 under a validated manipulation: abandon LLM-emergent division with this model at
+    effort `low`, and do not run the information-dependent experiment with LLM lifecycle policies.
+- **Not optimized for a positive answer.**
+  - The treatment is unchanged, and the expected futility stop is declared.
+  - `central` is the strongest fixed decomposition.
+  - No arm, cell, R, threshold or prompt changes after any Stage 1 output.
 
 ## 8. Relation to the stronger research question
 
 The eventual question is whether architecture can change usefully in response to information unavailable at t0.
 Experiments 0 and 0b do not test it:
 - the calibration found no I cells;
-- the recommended extension in SPEC §10 and EXPERIMENT_STATUS.md needs new cells in which mid-task information changes
-  the optimal organization.
+- SPEC §10 and EXPERIMENT_STATUS.md recommend new cells in which mid-task information changes the optimal organization.
 
-**Moving to it now would be premature:**
-- A policy that never divides where division pays from t0 is very likely to hit a floor in cells that require dividing
-  after new information.
-- Its result would be uninterpretable without a live-validated division instrument and a scripted one-shot
-  comparator.
+**Moving to it now would be premature.** A policy that never divides where division pays from t0 is very likely to hit
+a floor where division must follow new information, and no live multi-child division has been observed.
 
-**Another full benchmark on the primitive spawn decision is not worthwhile:**
-- Criterion 2 rests only on the 4 P cells.
-- The treatment's outcome there is nearly certain.
-- The other 26 cells cannot rescue SUPPORTED once criterion 2 fires.
+**Another full benchmark on the primitive decision is not justified now**, only after a Stage 1 GO. Criterion 2 rests
+on the 4 P cells, the treatment's outcome there is nearly certain, and the other 26 cells cannot rescue SUPPORTED once
+criterion 2 fires.
 
-**Worth doing:**
-- the 36-run Stage 1, because its manipulation check validates an instrument the stronger experiment also needs;
-- offline, zero-API design and calibration of I cells, which can proceed independently.
+**Worth doing now:** Stage 1, whose check is necessary though not sufficient for any I-cell experiment, and offline,
+zero-API design and calibration of I cells.
 
 ## 9. Recommendation
 
-**B. Run a small clean replication with a scripted `central` and an unchanged `developmental`** (Stage 1 above, 36
-runs).
+**Option B: a small clean replication with a scripted `central` and an unchanged `developmental`** (Stage 0-pilot and
+Stage 1, 40 live runs).
 
-**Why:**
-- **It is the smallest step that turns an invalid observation into a valid, pre-registered test.** It makes exactly
-  one change, and that change was fixed by text written before 0b.
-- **It resolves the one genuinely open empirical question** every successor depends on: whether live agents realize
-  the designed parallel trade-off. No pilot or 0b run ever divided across two or more children.
-- **It closes the original H honestly and cheaply.** It pre-declares that the expected outcome is a futility stop.
+**Reasons:**
+- **The smallest valid step.** It turns an invalid observation into a valid, pre-registered test of criterion 2. It
+  changes one arm's definition, fixed entirely by pre-0b artefacts, and declares its scope cuts (4 P cells, no
+  `router`, only the urgent part of (v)).
+- **It tests the open instrument.** No pilot or 0b run ever divided, so whether live agents realize the designed
+  fan-out trade-off in these cells is the instrument E would reuse.
+- **It is cheap and declared.** The expected futility stop is declared in advance.
 - **The alternatives are weaker:**
-  - C is dominated.
-  - D would hit a floor.
-  - A would leave the hypothesis without any valid test and the environment unvalidated, to save about 150 calls.
-- **E is the strongest alternative.** It has higher information value, but its instrument is the one B validates, and
-  its representation wording is a degree of freedom chosen after the failure. It should be decided after B, as a
-  separate pre-registration.
+  - option C is dominated;
+  - option D would hit a floor;
+  - option A would leave the hypothesis without a valid test and the instrument unexamined, to save about 200 calls.
 
-**The next decision after B is A or E, not C.**
+**The strongest objection, and the answer.**
+- **The objection.** E contains B: a scripted `central` plus an unchanged arm. So B-then-E repeats B's baseline arms,
+  and deferring E's wording lets it be chosen after still more data.
+- **The answer.**
+  - B first avoids building a variant arm on an instrument never seen working live.
+  - If E is contemplated, its single variant text should be committed with B's pre-registration, before any B output,
+    and run only if B stops at (5).
+  - A (stop) is a defensible alternative. It gives up only the instrument check and a valid criterion-2 test.
 
-**Exact go/no-go for Stage 2:**
+**Next decisions:**
 
-> GO iff Stage 1 is valid under §7 (1)–(3): completeness, AND at most one completed scripted-`central` run fails to
-> realize the frozen k-way parallel division, AND mean fitness(scripted `central`) > mean fitness(`single`) over the 12 + 12 B-urgent runs
-> (with `single` accuracy ≥ 0.75, audit parity, and ≤ 5% `single` cap hits), AND unchanged `developmental` is parallel
-> in ≥ 6 of 12 P-cell runs (criterion 2's statistic parallel_rate(P) ≥ 0.50; with missing runs, computed as that
-> statistic).
+| outcome | next |
+|---|---|
+| (5), the expected case | A or one E, never C |
+| (4) | A, or a new pre-registered redesign |
+| GO | C (Stage 2) |
+
+**Exact go/no-go.**
+
+> Commit Stage 1 iff Stage 0 passes and every Stage 0-pilot `central` run creates its k children, each reading its
+> assigned documents.
 >
-> Otherwise, NO-GO, with the pre-declared conclusion of §7.
+> GO to Stage 2 iff all of the following hold:
+> - §7 (1)–(3) hold: completeness; identity and validity; at most one non-intact scripted-`central` run;
+> - mean fitness(scripted `central`) > mean fitness(`single`) over the B-urgent runs;
+> - the unchanged `developmental` has parallel_rate(P) ≥ 0.50 (≥ 6 of 12 when all complete).
+>
+> Otherwise NO-GO, with the pre-declared label of §7.
 
 ## Limitations
 
-- **The live facts are as reported** by the experimenter's trace run. The logs are not in the repository.
-- **The Stage 1 probabilities assume** independent runs and simulator-accurate costs. The 12 runs are clustered in 4
-  tasks from 2 templates, so the effective sample size is smaller.
-- **The oracle assumes perfect aggregation of child reports**, so the live (v) check is exactly where the calibration
-  is least tested.
-- **This memo decides nothing irreversible.** Stage 1 still requires its own pre-registration, the Stage 0 checks, and
-  a separate approval before any API call.
+- **The live facts are as reported.** The logs are not in the repository, and the rationale census is not yet
+  reported.
+- **The probabilities assume independent runs** and simulator-accurate costs. Runs are clustered in 4 cells from 2
+  templates, and the oracle assumes perfect aggregation of child reports, so the live (v) check is where the
+  calibration is least tested.
+- **This memo decides nothing irreversible.** Stage 1 still needs its own pre-registration, the Stage 0 checks, and a
+  separate approval before any API call.
