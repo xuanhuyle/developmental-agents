@@ -1,0 +1,14 @@
+{
+ "cost_cv": 0.008,
+ "input_scale": 2.0052,
+ "llm_calls": 80,
+ "p90_output_tokens": 203,
+ "reasoning_tokens": 36,
+ "runs": 24,
+ "single_accuracy": {
+  "cross": 1.0,
+  "parallel": 1.0,
+  "solo": 1.0
+ },
+ "single_p95_elapsed_s": 344.0196
+}

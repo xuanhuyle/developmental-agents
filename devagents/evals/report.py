@@ -135,7 +135,7 @@ def build_report(results_dir: Path, frozen: dict, frozen_ok: bool, weight_overri
             "agreement_with_labels": statistics.fmean(agreement) if agreement else None,
             "n_runs": len(records), "infra_errors": {k: len(v) for k, v in errors.items()},
             "weights": {k: vars(w) for k, w in weights.items()}, "frozen_sha": manifest.get("frozen_sha"),
-            "n_boot": n_boot,
+            "n_boot": n_boot, "experiment": frozen.get("experiment", "0"),
             "provisional_freeze": frozen.get("provisional", False)}
 
 
@@ -150,7 +150,7 @@ def format_markdown(rep: dict) -> str:
                  "overridden, or the frozen configuration did not verify.\n")
     if rep["provisional_freeze"]:
         L.append("> The freeze is **provisional** (no pilot). Its token assumptions are defaults, not measurements.\n")
-    L.append(f"# Experiment 0 report\n\nResults: `{rep['results_dir']}`. Frozen config sha256: `{rep['frozen_sha']}`. "
+    L.append(f"# Experiment {rep.get('experiment', '0')} report\n\nResults: `{rep['results_dir']}`. Frozen config sha256: `{rep['frozen_sha']}`. "
              f"Completed runs: {rep['n_runs']}. Bootstrap resamples: {rep['n_boot']}.\n")
     L.append(f"## Verdict: **{rep['verdict'].upper()}**\n")
     L.append("### Validity conditions (SPEC §8)\n")

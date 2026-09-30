@@ -7,6 +7,9 @@
     run              the frozen main experiment (§4); --smoke runs all modes on the pilot tasks (needs an API key)
     report DIR       recompute everything from the event logs and evaluate §8
     build-world      regenerate data/world/ from the fact tables
+
+freeze, run and report take --experiment 0b to use Experiment 0b (SPEC_0B.md): its constants,
+data/exp0b/frozen.json and results/exp0b/. Without it they use Experiment 0, as before.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-from devagents.config import default_constants, load_frozen, sha256_file, FROZEN_PATH
+from devagents.config import EXPERIMENTS, ROOT, default_constants, load_frozen, sha256_file
 
 
 def _llm_policy(constants, no_structured: bool):
@@ -78,10 +81,17 @@ def cmd_pilot(a):
 
 def cmd_freeze(a):
     from devagents.evals.experiment import freeze
-    res = freeze(Path(a.pilot) if a.pilot else None, a.compute, n_sims=a.sims)
+    if a.pilot and a.pilot_stats:
+        sys.exit("Pass either --pilot DIR or --pilot-stats FILE, not both.")
+    if a.experiment != "0" and not (a.pilot or a.pilot_stats):
+        sys.exit(f"Experiment {a.experiment} reuses the Experiment 0 pilot: pass --pilot DIR or --pilot-stats FILE.")
+    stats = json.loads(Path(a.pilot_stats).read_text()) if a.pilot_stats else None
+    res = freeze(Path(a.pilot) if a.pilot else None, a.compute, out=Path(a.out) if a.out else None, n_sims=a.sims,
+                 experiment=a.experiment, stats=stats, stats_source=a.pilot_stats or "")
     print(json.dumps(res, indent=1))
     if res["ok"]:
-        print(f"Commit {res['path']} and record sha256 {res['sha']} in EXPERIMENT_STATUS.md and SPEC.md §11.")
+        where = "EXPERIMENT_STATUS.md and SPEC.md §11" if a.experiment == "0" else "EXPERIMENT_STATUS.md"
+        print(f"Commit {res['path']} and record sha256 {res['sha']} in {where}.")
     return 0 if res["ok"] else 1
 
 
@@ -89,15 +99,17 @@ def cmd_run(a):
     from devagents.environment.tasks import PILOT_TASKS, TASKS, TASKS_BY_ID
     from devagents.evals.experiment import frozen_constants, make_manifest, plan, run_suite, verify_frozen
     from devagents.runtime.runtime import MODES
-    if a.exploratory and not FROZEN_PATH.exists():
-        frozen, constants, sha = None, default_constants(a.compute), ""
+    exp = EXPERIMENTS[a.experiment]
+    if a.exploratory and not exp.frozen.exists():
+        frozen, constants, sha = None, exp.constants(a.compute), ""
     else:
-        frozen, constants, sha = frozen_constants()
+        frozen, constants, sha = frozen_constants(a.experiment)
         problems = verify_frozen(frozen)
         if problems and not a.exploratory:
             sys.exit("Frozen configuration does not verify (SPEC §7.4):\n  " + "\n  ".join(problems))
         if frozen.get("provisional") and not (a.exploratory or a.smoke):
-            sys.exit("data/frozen.json is provisional (made without a pilot). Run `pilot`, then `freeze --pilot DIR` "
+            sys.exit(f"{exp.frozen.relative_to(ROOT).as_posix()} is provisional (made without a pilot). "
+                     "Run `pilot`, then `freeze --pilot DIR` "
                      "(SPEC §7.4), or pass --exploratory.")
     tasks = [TASKS_BY_ID[t] for t in a.tasks.split(",")] if a.tasks else (PILOT_TASKS if a.smoke else TASKS)
     modes = a.modes.split(",") if a.modes else list(MODES)
@@ -105,23 +117,29 @@ def cmd_run(a):
     regimes = ["urgent"] if a.smoke else None
     configs = plan(tasks, constants, modes, repeats, regimes=regimes, frozen_sha=sha)
     exploratory = a.exploratory or a.smoke or bool(a.tasks) or bool(a.modes) or bool(a.repeats and frozen and a.repeats != frozen["R"])
-    default_out = "results/smoke" if a.smoke else ("results/exploratory" if exploratory else "results/main")
+    default_out = exp.results / ("smoke" if a.smoke else ("exploratory" if exploratory else "main"))
     out = Path(a.out or default_out)
     summary = run_suite(configs, _llm_policy(constants, a.no_structured_output), constants, out,
-                        make_manifest("smoke" if a.smoke else "main", configs, constants, exploratory, sha), a.workers)
+                        make_manifest("smoke" if a.smoke else "main", configs, constants, exploratory, sha, a.experiment),
+                        a.workers)
     print(json.dumps(summary))
-    print(f"Next: python -m devagents report {out}")
+    print(f"Next: python -m devagents report {out}" + (f" --experiment {a.experiment}" if a.experiment != "0" else ""))
     return 0
 
 
 def cmd_report(a):
     from devagents.evals.experiment import verify_frozen
     from devagents.evals.report import build_report, format_markdown
-    frozen = load_frozen()
-    if frozen is None:
-        sys.exit("data/frozen.json not found; reports need the frozen labels (run `freeze`).")
     manifest = json.loads((Path(a.results) / "manifest.json").read_text())
-    frozen_ok = manifest.get("frozen_sha") == sha256_file(FROZEN_PATH) and not verify_frozen(frozen)
+    suite = manifest.get("experiment", "0")
+    experiment = a.experiment or suite
+    if experiment != suite:
+        sys.exit(f"{a.results} is an Experiment {suite} suite; report it with --experiment {suite}.")
+    path = EXPERIMENTS[experiment].frozen
+    frozen = load_frozen(path)
+    if frozen is None:
+        sys.exit(f"{path} not found; reports need the frozen labels (run `freeze`).")
+    frozen_ok = manifest.get("frozen_sha") == sha256_file(path) and not verify_frozen(frozen)
     overrides = {}
     if a.value_of_time:
         overrides["value_of_time"] = {k: float(v) for k, v in (p.split("=") for p in a.value_of_time.split(","))}
@@ -172,6 +190,8 @@ def main(argv=None) -> int:
         s.add_argument("--no-structured-output", action="store_true",
                        help="do not send output_config.format (use only if the API rejects the schema)")
         s.set_defaults(fn=fn)
+        if name == "run":
+            s.add_argument("--experiment", choices=sorted(EXPERIMENTS), default="0")
         if name == "pilot":
             s.add_argument("--repeats", type=int, default=2)
         else:
@@ -182,11 +202,15 @@ def main(argv=None) -> int:
             s.add_argument("--modes")
     s = sub.add_parser("freeze")
     s.add_argument("--pilot")
+    s.add_argument("--pilot-stats", help="a JSON file of pilot_stats() output, when the pilot logs are elsewhere")
+    s.add_argument("--experiment", choices=sorted(EXPERIMENTS), default="0")
+    s.add_argument("--out", help="write the frozen file here instead of the experiment's frozen path")
     s.add_argument("--compute", default="opus")
     s.add_argument("--sims", type=int, default=200)
     s.set_defaults(fn=cmd_freeze)
     s = sub.add_parser("report")
     s.add_argument("results")
+    s.add_argument("--experiment", choices=sorted(EXPERIMENTS), help="default: the suite's own (from its manifest)")
     s.add_argument("--value-of-time", help="exploratory rescoring, e.g. relaxed=0.0001,urgent=0.002")
     s.add_argument("--w-coord", type=float)
     s.add_argument("--n-boot", type=int, default=10_000)

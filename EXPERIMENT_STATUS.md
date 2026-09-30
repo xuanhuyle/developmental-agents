@@ -34,7 +34,7 @@ Append-only. Newest entries at the bottom of the log.
 
 ## Tested (all without network)
 
-Run `pytest -q`: 100 tests, all passing at the time of writing. They cover:
+Run `pytest -q`: 109 tests, all passing at the time of writing. They cover:
 
 - **Accounting.** Conservation replayed from the log after every event. Spawning cannot create money. An allocation
   moves exactly from parent to child, and the spawn fee formula holds. Refunds equal the child's final balance.
@@ -73,6 +73,15 @@ Run `pytest -q`: 100 tests, all passing at the time of writing. They cover:
 - **Review regressions** (`tests/test_review_regressions.py`): one test per confirmed code-review finding, plus
   mutation-killing tests for rules that could previously be deleted without any test failing.
 
+- **Experiment 0b** (`tests/test_exp0b.py`):
+  - the bootstrap does not depend on the order of the cells, and `evaluate` and `criteria_check` give identical output
+    under different `PYTHONHASHSEED` values (amendment 0b-0); both tests fail on the unfixed code;
+  - Experiment 0 keeps its paths, constants and frozen file (its sha256 is pinned);
+  - the 0b constants differ from Experiment 0's in exactly the four monetary values;
+  - 0b has its own spec, frozen file and results root, and its manifests record the experiment and SPEC_0B.md;
+  - the committed 0b freeze verifies and is the pre-registered one;
+  - `report` refuses a suite from another experiment, and a 0b suite reports as Experiment 0b.
+
 LLM-free commands also exercised: `calibrate` (the gate passes), `criteria-check`, and `freeze` (which produced the
 provisional freeze below).
 
@@ -97,6 +106,9 @@ adequacy) ran before any LLM run, and a skeptic re-verified every finding. Resul
   - real token counts, reasoning-token volume, the tokenizer ratio r, refusal rates, and the cost and time dispersion.
 - **The pilot, the non-provisional freeze and the main run.** No LLM results exist, and none were fabricated.
 - **The `--no-structured-output` fallback** against the live API.
+
+Update (2026-09-30): the live pilot has since run outside this repository (see the log), and Experiment 0b has a
+non-provisional freeze. No `developmental` or `router` LLM output exists, and no main run has been started.
 
 ## Known limitations
 
@@ -124,10 +136,11 @@ adequacy) ran before any LLM run, and a skeptic re-verified every finding. Resul
 
 ## Freeze record
 
-| date | kind | sha256 of data/frozen.json | R | notes |
+| date | kind | sha256 of the frozen file | R | notes |
 |---|---|---|---|---|
 | (initial commit) | PROVISIONAL (no pilot) | a39cf404…9544f6 | 3 | gate passed with no repair steps; p = 0.9 and cv = 0.25 are defaults. Superseded |
 | after code review | PROVISIONAL (no pilot) | 910bf202…dbb6f9 | 3 | the reserve disclosure lengthened the prompt; mechanical repair took 1 step (doc processing 0.100 → 0.105 s/token). `run` refuses this freeze |
+| 2026-09-30 | **Experiment 0b**, from the live pilot | `data/exp0b/frozen.json` 0d10865d…ec50ff | 3 | gate (a)–(f) passed with repair steps (0, 0, 0); S/P/ambiguous 23/4/3; S_urgent 8, P_urgent 4, twin 8, D_urgent 3, I 0; IDEAL 0.855 at R = 3; prompt fingerprint 53790f89…f524b6. See SPEC_0B.md |
 
 ## Log
 
@@ -162,3 +175,33 @@ adequacy) ran before any LLM run, and a skeptic re-verified every finding. Resul
   - **No non-provisional freeze exists.** `data/frozen.json` is still the provisional 910bf202…dbb6f9, and the main run
     was not started. Under SPEC §8 validity (i), the gate must hold. No constant, prompt, task, criterion or scoring
     rule was changed to make it pass.
+- 2026-09-30, **Experiment 0 recorded as: calibration failure after live pilot; no developmental-policy hypothesis
+  test performed.** No valid Experiment 0 main run exists. `SPEC.md` and the provisional `data/frozen.json`
+  (910bf202…dbb6f9) are unchanged.
+- 2026-09-30, **Experiment 0b pre-registered** (`SPEC_0B.md`), implementing `EXPERIMENT_0B_PROPOSAL.md` (17da3c5):
+  - **Reserve audit (step 0) passed**, run locally on the real pilot logs with `reserve_headroom.py`. Against the
+    pre-declared rule:
+    - planned = replayed = 24, `problems = {}`, `infrastructure_errors = {}`, `violations = 0`;
+    - steps within 10% / 5% / 1% of the reserve: 0 / 0 / 0; minimum headroom 930 tokens (fraction 0.21405);
+    - `first_step_allowance_used_fraction_max` = 0.07 (≤ 0.8);
+    - worst later-step rate 0.52246256 tokens/char, which exhausts the allowance only at 44,518.5 characters
+      (≥ 21,128); worst SQL-dominated rate 0.50909091;
+    - largest later observation 13,245 characters; maximum output ÷ `max_tokens` 0.16309.
+
+    The live reserve carries forward unchanged.
+  - **Amendment 0b-0:** `contrast_ci` iterates the cells in sorted order, so bootstrap CIs, the criteria check's R and
+    the §8 verdict no longer depend on `PYTHONHASHSEED`.
+  - **Amendment 0b-1:** B = $1.392, V = $0.696, value of time $0.0000696/s (relaxed) and $0.0011136/s (urgent).
+    Everything else is unchanged. Selected with `--experiment 0b`; Experiment 0 remains the default.
+  - **Freeze**, offline and LLM-free, from the reported pilot statistics in `data/exp0b/pilot_stats.json`:
+    `python -m devagents freeze --experiment 0b --pilot-stats data/exp0b/pilot_stats.json`.
+    - Output: `{"ok": true, "R": 3, "steps": {"doc_per_token": 0, "urgent_vot": 0, "relaxed_vot": 0}}`.
+    - Gate (a)–(f) passed; S/P/ambiguous 23/4/3; S_urgent 8, P_urgent 4, twin 8, D_urgent 3, I 0.
+    - Criteria check at R = 3: IDEAL 0.855, WASTEFUL 0.005, every other policy 0.000.
+    - It matches the proposal's expectations exactly; the calibration cells are identical to the proposal's C′. A
+      repeat under `PYTHONHASHSEED=7` gave an identical file apart from `created_at`.
+    - `data/exp0b/frozen.json` sha256: `0d10865d595c013c362661da088272d35555fd298a963a88993bec4cf9ec50ff`.
+    - Prompt fingerprint: `53790f89f2a6ebef062d9ad31bd77d79546381fa2d4765302334ee9588f524b6`.
+  - Tests grew from 100 to 109, all passing.
+  - No live developmental or router output exists; no Anthropic API call was made. The main run has not been
+    started. Next: `python -m devagents run --experiment 0b`.

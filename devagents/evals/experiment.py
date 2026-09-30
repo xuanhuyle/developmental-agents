@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from devagents.config import FROZEN_PATH, SPEC_PATH, Constants, default_constants, load_frozen, sha256_file
+from devagents.config import EXPERIMENTS, SPEC_PATH, Constants, default_constants, load_frozen, sha256_file
 from devagents.environment.sources import InformationEnvironment
 from devagents.environment.tasks import PILOT_TASKS, TASKS, Task
 from devagents.environment.world import load_world
@@ -132,8 +132,10 @@ def run_suite(configs: list[RunConfig], policy, constants: Constants, out_dir: P
     return {"planned": len(configs), "completed": len(done) + counter["done"], "failed": counter["failed"]}
 
 
-def make_manifest(kind: str, configs: list[RunConfig], constants: Constants, exploratory: bool, frozen_sha: str) -> dict:
-    return {"kind": kind, "exploratory": exploratory, "frozen_sha": frozen_sha, "spec_sha": sha256_file(SPEC_PATH),
+def make_manifest(kind: str, configs: list[RunConfig], constants: Constants, exploratory: bool, frozen_sha: str,
+                  experiment: str = "0") -> dict:
+    return {"kind": kind, "experiment": experiment, "exploratory": exploratory, "frozen_sha": frozen_sha,
+            "spec_sha": sha256_file(EXPERIMENTS[experiment].spec),
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "constants": constants.to_json(),
             "planned_runs": [c.run_id for c in configs], "modes": sorted({c.mode for c in configs}),
             "tasks": sorted({c.task.id for c in configs}), "repeats": max(c.repeat for c in configs) + 1}
@@ -189,14 +191,20 @@ def pilot_stats(pilot_dir: Path) -> dict:
             "cost_cv": round(statistics.fmean(rel_vars) ** 0.5, 4) if rel_vars else None, "cost_cv_groups": len(rel_vars)}
 
 
-def freeze(pilot_dir: Path | None = None, compute: str = "opus", out: Path = FROZEN_PATH, n_sims: int = 200,
-           max_repair_steps: int = 6) -> dict:
+def freeze(pilot_dir: Path | None = None, compute: str = "opus", out: Path | None = None, n_sims: int = 200,
+           max_repair_steps: int = 6, experiment: str = "0", stats: dict | None = None, stats_source: str = "") -> dict:
     """Calibrate with the pilot's measurements, repair the gate mechanically if needed, run the criteria check, and
-    write data/frozen.json (SPEC §7.4). No LLM is called."""
-    constants = default_constants(compute)
-    base, stats = Assumptions(), None
+    write the experiment's frozen file (SPEC §7.4; data/frozen.json for Experiment 0). No LLM is called. The pilot
+    statistics come from the pilot's logs (`pilot_dir`) or, when the logs are elsewhere, from `stats` as
+    `pilot_stats` reported them (SPEC_0B.md 0b-3)."""
+    exp = EXPERIMENTS[experiment]
+    out = out or exp.frozen
+    # Experiment 0 calls this module's default_constants, as before (analysis/exp0b/study.py substitutes it).
+    constants = default_constants(compute) if experiment == "0" else exp.constants(compute)
+    base = Assumptions()
     if pilot_dir:
-        stats = pilot_stats(pilot_dir)
+        stats, stats_source = pilot_stats(pilot_dir), str(pilot_dir)
+    if stats:
         base = Assumptions(input_scale=stats["input_scale"], reasoning_tokens=stats["reasoning_tokens"])
         compute_opt = replace(constants.compute, min_step_tokens=max(constants.compute.min_step_tokens,
                                                                      stats["p90_output_tokens"]))
@@ -226,11 +234,14 @@ def freeze(pilot_dir: Path | None = None, compute: str = "opus", out: Path = FRO
                 steps = {"doc_per_token": doc_steps, "urgent_vot": u, "relaxed_vot": r}
                 attempts.append({"steps": steps, "R": cc["R"]})
                 if cc["R"] is not None:
-                    frozen = {"created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                              "spec_sha": sha256_file(SPEC_PATH), "provisional": stats is None, "pilot": stats,
+                    frozen = {"created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "experiment": experiment,
+                              "spec_sha": sha256_file(exp.spec), "provisional": stats is None, "pilot": stats,
+                              "pilot_source": stats_source,
                               "assumptions": asdict(base), "constants": c.to_json(), "repair_steps": steps,
                               "calibration": {"delta": cal["delta"], "cells": cal["cells"], "gate": cal["gate"]},
                               "criteria_check": cc, "R": cc["R"], "prompt_sha": prompt_fingerprint(c)}
+                    if experiment != "0":
+                        frozen["base_spec_sha"] = sha256_file(SPEC_PATH)  # the spec it amends
                     Path(out).parent.mkdir(parents=True, exist_ok=True)
                     Path(out).write_text(json.dumps(frozen, indent=1, sort_keys=True))
                     return {"ok": True, "path": str(out), "sha": sha256_file(out), "R": cc["R"], "steps": steps,
@@ -267,11 +278,14 @@ def prompt_fingerprint(constants: Constants) -> str:
     return Run(cfg, None, InformationEnvironment(load_world(), constants.sources)).prompt_fingerprint()
 
 
-def frozen_constants() -> tuple[dict, Constants, str]:
-    frozen = load_frozen()
+def frozen_constants(experiment: str = "0") -> tuple[dict, Constants, str]:
+    path = EXPERIMENTS[experiment].frozen
+    frozen = load_frozen(path)
     if frozen is None:
-        raise SystemExit("data/frozen.json not found: run `python -m devagents freeze` first (SPEC §7.4).")
-    return frozen, Constants.from_json(frozen["constants"]), sha256_file(FROZEN_PATH)
+        raise SystemExit(f"{path} not found: run `python -m devagents freeze` first (SPEC §7.4).")
+    if frozen.get("experiment", "0") != experiment:
+        raise SystemExit(f"{path} is the freeze of Experiment {frozen.get('experiment', '0')}, not {experiment}.")
+    return frozen, Constants.from_json(frozen["constants"]), sha256_file(path)
 
 
 def modes_for(kind: str) -> list[str]:

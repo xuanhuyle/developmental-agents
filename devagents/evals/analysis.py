@@ -65,7 +65,7 @@ def contrast_ci(runs: Runs, cells: set, comparator: str, metric: str = "fitness"
     (mean developmental metric - mean comparator metric). The CI comes from a two-level percentile bootstrap:
     tasks are resampled within classes, then runs within each (cell, mode). The two levels make it conservative."""
     tasks = defaultdict(lambda: defaultdict(list))  # class -> task -> [(dev values, comparator values)]
-    for c in cells:
+    for c in sorted(cells):  # sorted: the bootstrap's draws must not depend on set order (PYTHONHASHSEED); SPEC_0B 0b-0
         dev = [metric_value(r, metric) for r in runs.get("developmental", c)]
         comp = [metric_value(r, metric) for r in runs.get(comparator, c)]
         if dev and comp:
