@@ -256,3 +256,37 @@ non-provisional freeze. No `developmental` or `router` LLM output exists, and no
   - Tests grew from 109 to 202, all passing.
   - **Next live action:** `python -m devagents exp0c pilot` (the 4-run X2 pilot only). Stage 1 runs only after a PASS,
     and after `data/exp0c/pilot_record.json` and the pilot's outcome are committed here.
+- 2026-10-01, **Experiment 0c completed: X2 pilot PASS, Stage 1 NO-GO (criterion 2 fired).** Run locally by the
+  experimenter under the pre-registration `data/exp0c/prereg.json` (sha256, LF-normalized,
+  `75e478ca485462ebedf759b63c4dfba94c2b6a4fc157c5aa90aa39618e6f78d0`). The raw result directories
+  (`results/exp0c/pilot`, `results/exp0c/stage1`) are local and gitignored; they are preserved unmodified and are not
+  in this repository. The numbers below are as reported from them.
+  - **X2 instrument pilot:** 4/4 runs completed; **PASS**.
+    - Mean fitness on X2 urgent: scripted `central` 0.5661, `single` 0.3667.
+    - Scripted `central` created exactly 3 children and ran them in parallel. Quality stayed 1, elapsed time fell from
+      about 344 s to about 133 s, and money rose, but total fitness was clearly higher.
+    - Pilot record: `data/exp0c/pilot_record.json`, committed in 1797759 (manifest `created_at` 2026-10-01T14:42:30Z;
+      `pilot_decision.json` sha256 `f224ee15cf1eec7dbe1d44b495739a25ff5e966c76165c01ee1b087e37927be2`).
+    - Documentation deviation: SPEC_0C.md §6 asked for this EXPERIMENT_STATUS.md entry before Stage 1. Only the
+      pilot record was committed then, which is what the code gate requires and checks. The entry is appended here,
+      after the fact; no data, rule or decision is affected.
+  - **Stage 1:** 36/36 runs completed (T01, T04, T07, T10 urgent × `single`, scripted `central`, unchanged
+    `developmental` × R = 3).
+    - Every gate passed, in order: completion, treatment identity, `single` validity, scripted-`central` integrity, and
+      the live manipulation (mean fitness: scripted `central` 0.5583 > `single` 0.3552).
+    - Scripted `central` was parallel in 12/12 runs.
+    - **`developmental` was parallel in 0/12 runs and spawned in 0/12.** parallel_rate(P) = 0.00 < 0.50, so
+      **criterion 2 fired**. **Result: NO-GO.**
+    - The report states: "Under a live-validated B-urgent manipulation, the unchanged developmental treatment triggers
+      the preregistered never-spawn criterion. Under the full SPEC §8 design this criterion alone would make H NOT
+      SUPPORTED in a valid full experiment, but this narrow Stage 1 does not itself constitute a full §8 verdict."
+    - This is **not a full SPEC §8 verdict**. **No Stage 2 was run.**
+    - **Behavioural observation,** reported separately as pre-registered: a small number of scripted-`central`
+      children did not read every assigned document. The runs stayed mechanically intact, and this counts as child
+      behaviour, not as an infrastructure or implementation failure.
+  - **Consistency with the offline prediction** (pre-registered geometry at the 0b main run's token statistics):
+    - X2: `single` 0.3526 and scripted `central` 0.5524 predicted, against 0.3667 and 0.5661 observed;
+    - Stage 1: `single` 0.3430 and scripted `central` 0.5490 predicted, against 0.3552 and 0.5583 observed.
+
+    Stage 1 `single` (0.3552) equals Experiment 0b's B-urgent `single` mean.
+  - Not yet recorded here: the sha256 of `results/exp0c/stage1/stage1_decision.json`, which is local.
