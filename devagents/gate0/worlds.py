@@ -6,7 +6,8 @@ its *reveal set*; members differ only in what the triage source reveals:
 - template A, "workload reveal": a cheap SQL triage reveals which candidate documents must be read. In member X they
   are the long documents, in member Y the tiny ones (same count, same catalog).
 - template B, "dead-branch reveal": a slow memo reveals whether the heaviest work unit is still needed. In member X it
-  is discontinued; in member Y the memo names an entity that is not in the catalog, so every unit stays live.
+  is discontinued; in member Y the memo names a legacy entity listed in the structured source but without a report in
+  the catalog, so every unit with a report stays live.
 - D: Experiment 0b's T01 with every region report shortened (same question, same document ids). It is the stage-A
   dissociation state of EXPERIMENT_0C_POSTMORTEM_AND_NEXT_DECISION.md §9, built here only to calibrate it.
 """
@@ -291,8 +292,11 @@ def build_b(p: dict) -> Instance:
         titles.append((doc_id, d["title"].format(u=name)))
     titles.append((d["memo"], d["memo_title"]))
     unit_ids = [f"{d['doc']}-{n.lower()}" for n in names]
+    # The phantom is a real entity of the structured source with no report in the catalog (a legacy line, track or
+    # vendor), so member Y's memo names something the agent can look up; it has no bearing on the answer.
     sql = (f"CREATE TABLE {d['table']} ({', '.join(c + ' TEXT NOT NULL' for c in d['cols'])});\n"
-           + "".join(f"INSERT INTO {d['table']} VALUES ('{n}', 'core');\n" for n in names))
+           + "".join(f"INSERT INTO {d['table']} VALUES ('{n}', 'core');\n" for n in names)
+           + f"INSERT INTO {d['table']} VALUES ('{phantom}', 'legacy');\n")
     members = []
     for key, dead, live in (("X", [heavy[0]], list(range(1, len(units)))), ("Y", [phantom], list(range(len(units))))):
         head = f"# {d['memo_title']}\n\nIssued by the {COMPANY} programme office.\n\n"

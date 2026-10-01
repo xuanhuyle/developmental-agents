@@ -8,9 +8,10 @@ ground truth, *provided* the root actually received every needed fact before ans
 Plan names are `<prefix>[k]>` + `<continuation>`:
 
 - `blind`: the root reads the triage source and every candidate unit, then answers (no use of information).
-- `triage>solo`, `triage>fan<k>`: the root reads the triage source, then reads the needed documents itself, or spawns k
-  children over them (round-robin over the needed documents, in catalog order) and waits for all of them.
-- `spec<k>>…`: the root spawns k children over *all* candidate units at t0 (round-robin over units). In template A a
+- `triage>solo`, `triage>fan<k>`, `triage>self+<k>`: the root reads the triage source, then reads the needed documents
+  itself, or spawns k children over them and waits for all of them, or spawns k children and reads one share itself.
+  Shares are size-balanced (largest-first on the catalog's token counts).
+- `spec<k>>…`: the root spawns k children over *all* candidate units at t0 (size-balanced). In template A a
   child runs the triage query itself and reads only its units that are needed; in template B the root reads the
   triage memo while the children read their units. Continuations (B): `wait` (wait for every child), `dissolve`
   (after the memo, wait only for children holding a needed unit; the others are terminated when the run ends), and
@@ -35,6 +36,7 @@ from devagents.evals.calibrate import Assumptions
 from devagents.evals.metrics import metrics_from_events
 from devagents.gate0.worlds import Instance, Member
 from devagents.environment.tasks import Regime
+from devagents.runtime.resources import estimate_tokens
 from devagents.runtime.runtime import Run, RunConfig
 
 MAX_PER_QUERY = 10
@@ -45,14 +47,14 @@ STOP = "STOP: your assignment is no longer needed. Terminate now."
 class Plan:
     prefix: str  # "blind" | "triage" | "spec" | "spectop"
     k: int = 0
-    cont: str = ""  # "solo" | "fan" | "wait" | "dissolve" | "cancel"
+    cont: str = ""  # "solo" | "fan" | "self" | "wait" | "dissolve" | "cancel"
 
     @property
     def name(self) -> str:
         if self.prefix == "blind":
             return "blind"
         if self.prefix == "triage":
-            return "triage>solo" if self.cont == "solo" else f"triage>fan{self.k}"
+            return {"solo": "triage>solo", "fan": f"triage>fan{self.k}", "self": f"triage>self+{self.k}"}[self.cont]
         return f"{self.prefix}{self.k}>{self.cont}"
 
     @property
@@ -67,7 +69,7 @@ class Plan:
 
     @property
     def has_children(self) -> bool:
-        return self.prefix in ("spec", "spectop") or (self.prefix == "triage" and self.cont == "fan")
+        return self.prefix in ("spec", "spectop") or (self.prefix == "triage" and self.cont in ("fan", "self"))
 
 
 def parse_plan(name: str) -> Plan:
@@ -77,6 +79,8 @@ def parse_plan(name: str) -> Plan:
         return Plan("triage", 0, "solo")
     head, cont = name.split(">")
     if head == "triage":
+        if cont.startswith("self+"):
+            return Plan("triage", int(cont[5:]), "self")
         return Plan("triage", int(cont[3:]), "fan")
     for pre in ("spectop", "spec"):
         if head.startswith(pre):
@@ -93,6 +97,7 @@ def library(inst: Instance, member: Member, k_max: int) -> list[Plan]:
         plans.append(Plan("blind"))
     plans.append(Plan("triage", 0, "solo"))
     plans += [Plan("triage", k, "fan") for k in range(1, min(k_max, n_needed) + 1)]
+    plans += [Plan("triage", k, "self") for k in range(1, min(k_max, n_needed - 1) + 1)]
     conts = ("wait",) if (inst.triage_filters_units or not inst.triage) else ("wait", "dissolve", "cancel")
     if inst.triage:  # without a triage source, spec<k> would be triage>fan<k> under another name
         plans += [Plan("spec", k, c) for k in range(1, min(k_max, n_units) + 1) for c in conts]
@@ -110,6 +115,17 @@ def _query(reqs) -> dict:
 
 def _chunks(reqs: list, n: int = MAX_PER_QUERY) -> list[list]:
     return [reqs[i:i + n] for i in range(0, len(reqs), n)]
+
+
+def balanced(items: list, size, k: int) -> list[tuple]:
+    """Deterministic largest-first (LPT) assignment of items to k bins by size; ties by position. Sizes are the catalog's
+    token counts, which are identical across the members of a reveal set."""
+    bins, load = [[] for _ in range(k)], [0] * k
+    for i in sorted(range(len(items)), key=lambda i: (-size(items[i]), i)):
+        j = min(range(k), key=lambda b: (load[b], b))
+        bins[j].append(i)
+        load[j] += size(items[i])
+    return [tuple(items[i] for i in sorted(b)) for b in bins]
 
 
 def _work(i: int) -> dict:
@@ -164,7 +180,7 @@ class Program:
         return sorted(range(len(self.inst.units)), key=lambda i: (-size[i], i))[:m]
 
     def _tokens(self, doc: str) -> int:
-        return len(self.member.world.docs[doc])  # proportional to the estimator count; only the order is used
+        return estimate_tokens(self.member.world.docs[doc])  # the count the catalog shows
 
     # ---- root
     def _root(self, run):
@@ -178,13 +194,24 @@ class Program:
             if p.cont == "solo":
                 for ch in _chunks([("doc", d) for d in member.needed]):
                     yield _query(ch)
-            else:
-                self.child_docs = [list(member.needed[i::p.k]) for i in range(p.k)]
+            elif p.cont == "fan":
+                self.child_docs = [list(b) for b in balanced(list(member.needed), self._tokens, p.k)]
                 yield self._spawn([self._objective(ds, False) for ds in self.child_docs], wait=True)
+            else:  # "self": k children and the root share the needed documents (k + 1 balanced shares)
+                shares = [list(b) for b in balanced(list(member.needed), self._tokens, p.k + 1)]
+                own, self.child_docs = shares[0], shares[1:]
+                yield self._spawn([self._objective(ds, False) for ds in self.child_docs], wait=False)
+                for ch in _chunks([("doc", d) for d in own]):
+                    yield _query(ch)
+                self.assign = [()] * p.k
+                kids = [f"A0.{i + 1}" for i in range(p.k)]
+                while not all(self._reported(run, c) for c in kids):
+                    yield {"rationale": "Wait for the reports still needed.", "action": "WAIT", "wait_for": "all"}
         else:
             units = list(range(len(inst.units)))
             if p.prefix == "spec":
-                self.assign = [tuple(units[i::p.k]) for i in range(p.k)]
+                usize = lambda u: sum(self._tokens(d) for d in inst.units[u])  # noqa: E731
+                self.assign = balanced(units, usize, p.k)
             else:
                 self.assign = [(u,) for u in self._top_units(p.k)]
             filtered = inst.triage_filters_units
@@ -208,19 +235,24 @@ class Program:
         yield self._answer()
 
     def _finish_waiting(self, run):
+        """`wait` waits for every child; `dissolve`/`cancel` only for children holding a needed unit. Both send WAIT
+        only while a child they wait for has not reported, so the continuations differ only in whom they wait for."""
         p, live = self.plan, set(self.member.live_units)
         kids = [f"A0.{i + 1}" for i in range(len(self.assign))]
-        needed = [c for c, a in zip(kids, self.assign) if set(a) & live]
         if p.cont == "wait" or self.inst.triage_filters_units or not self.inst.triage:
-            yield {"rationale": "Wait for the reports.", "action": "WAIT", "wait_for": "all"}
-            return
-        if p.cont == "cancel":
-            for c, a in zip(kids, self.assign):
-                if not set(a) & live and run.agents[c].status != "terminated":
-                    yield {"rationale": "This assignment is no longer needed.", "action": "MESSAGE", "to": c,
-                           "content": STOP}
+            needed = kids
+        else:
+            needed = [c for c, a in zip(kids, self.assign) if set(a) & live]
+            if p.cont == "cancel":
+                # The status read below is a peek the root could only infer 0.5 s later; it only avoids an invalid
+                # MESSAGE to a child that has just terminated. Disclosed in GATE_0_SPEC.md §3.
+                for c, a in zip(kids, self.assign):
+                    if not set(a) & live and run.agents[c].status != "terminated":
+                        yield {"rationale": "This assignment is no longer needed.", "action": "MESSAGE", "to": c,
+                               "content": STOP}
+        mode = "all" if set(needed) == set(kids) else "any"
         while not all(self._reported(run, c) for c in needed):
-            yield {"rationale": "Wait for the reports still needed.", "action": "WAIT", "wait_for": "any"}
+            yield {"rationale": "Wait for the reports still needed.", "action": "WAIT", "wait_for": mode}
 
     # ---- children
     def _stopped(self, agent, run) -> bool:
