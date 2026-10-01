@@ -7,6 +7,9 @@
     run              the frozen main experiment (§4); --smoke runs all modes on the pilot tasks (needs an API key)
     report DIR       recompute everything from the event logs and evaluate §8
     build-world      regenerate data/world/ from the fact tables
+    exp0c ACTION     Experiment 0c (SPEC_0C.md): verify (offline Stage 0 checks), pilot (the 4-run X2 instrument
+                     pilot), stage1 (the 36-run Stage 1, only after the pilot PASSED), report DIR, and prereg
+                     (writes data/exp0c/prereg.json; refuses if it exists)
 
 freeze, run and report take --experiment 0b to use Experiment 0b (SPEC_0B.md): its constants,
 data/exp0b/frozen.json and results/exp0b/. Without it they use Experiment 0, as before.
@@ -48,7 +51,7 @@ def cmd_calibrate(a):
     cal = calibrate(constants, assumptions, with_grid=not a.no_grid)
     print(format_calibration(cal))
     if a.json:
-        Path(a.json).write_text(json.dumps(cal, indent=1))
+        Path(a.json).write_text(json.dumps(cal, indent=1), encoding="utf-8")
     return 0 if cal["gate"]["passed"] else 1
 
 
@@ -148,10 +151,48 @@ def cmd_report(a):
     rep = build_report(Path(a.results), frozen, frozen_ok, overrides or None, n_boot=a.n_boot)
     md = format_markdown(rep)
     suffix = "-exploratory" if rep["exploratory"] else ""
-    (Path(a.results) / f"report{suffix}.md").write_text(md)
-    (Path(a.results) / f"summary{suffix}.json").write_text(json.dumps(rep, indent=1, default=str))
+    (Path(a.results) / f"report{suffix}.md").write_text(md, encoding="utf-8")
+    (Path(a.results) / f"summary{suffix}.json").write_text(json.dumps(rep, indent=1, default=str), encoding="utf-8")
     print(md)
     return 0
+
+
+def cmd_exp0c(a):
+    """Experiment 0c (SPEC_0C.md). `pilot` and `stage1` need an API key; the others are offline."""
+    from devagents.evals import exp0c
+    if a.action == "verify":
+        prereg, sha = exp0c.load_prereg()
+        checks = exp0c.stage0_checks(prereg)
+        for name, problems in checks.items():
+            print(f"{'ok    ' if not problems else 'FAILED'} {name}" + "".join(f"\n         - {p}" for p in problems))
+        failed = [n for n, p in checks.items() if p]
+        print(f"data/exp0c/prereg.json sha256 {sha}: " + ("all Stage 0 checks pass" if not failed else
+                                                         f"{len(failed)} check(s) FAILED: STOP (SPEC_0C.md §5)"))
+        return 1 if failed else 0
+    if a.action == "prereg":
+        if exp0c.PREREG_PATH.exists():
+            sys.exit(f"{exp0c.PREREG_PATH} exists; it is the pre-registration and is never rewritten.")
+        print(f"wrote {exp0c.PREREG_PATH} sha256 {exp0c.write_prereg()}")
+        return 0
+    if a.action in ("pilot", "stage1"):
+        if a.results:
+            sys.exit(f"exp0c {a.action} takes no directory: it always uses results/exp0c/{a.action} (SPEC_0C.md §11).")
+
+        def make_policy(constants):
+            policy = _llm_policy(constants, no_structured=False)
+            client = getattr(policy, "client", None)
+            if not (getattr(client, "api_key", None) or getattr(client, "auth_token", None)):
+                sys.exit("No Anthropic API credentials are configured (ANTHROPIC_API_KEY); nothing was run or written.")
+            return policy
+        res = exp0c.run_stage(a.action, make_policy, workers=a.workers)
+        if a.action == "pilot":
+            print(f"Commit {exp0c.pilot_record_path().relative_to(ROOT).as_posix()} (the pilot record) before Stage 1.")
+    else:
+        if not a.results:
+            sys.exit("usage: python -m devagents exp0c report results/exp0c/<pilot|stage1>")
+        res = exp0c.report_stage(Path(a.results))
+    print(res["markdown"])
+    return 0 if res["decision"]["verdict"] in ("PASS", "GO", "NO-GO") else 1
 
 
 def cmd_build_world(a):
@@ -215,9 +256,17 @@ def main(argv=None) -> int:
     s.add_argument("--w-coord", type=float)
     s.add_argument("--n-boot", type=int, default=10_000)
     s.set_defaults(fn=cmd_report)
+    s = sub.add_parser("exp0c", help="Experiment 0c (SPEC_0C.md): verify | prereg | pilot | stage1 | report DIR")
+    s.add_argument("action", choices=["verify", "prereg", "pilot", "stage1", "report"])
+    s.add_argument("results", nargs="?", help="report only: a results/exp0c/<stage> directory")
+    s.add_argument("--workers", type=int, default=4)
+    s.set_defaults(fn=cmd_exp0c)
     s = sub.add_parser("build-world")
     s.set_defaults(fn=cmd_build_world)
     a = p.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # a cp1252 console or pipe must not crash on report text (U+2212 etc.)
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     return a.fn(a)
 
 

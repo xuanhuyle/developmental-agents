@@ -42,21 +42,36 @@ def load_runs(results_dir: Path, planned: set[str] | None = None) -> tuple[list[
     return metrics, starts, errors
 
 
-def audit_parity(starts: list[dict], frozen_sha: str | None = None) -> tuple[bool, list[str]]:
+def audit_parity(starts: list[dict], frozen_sha: str | None = None,
+                 declared: dict[str, dict] | None = None) -> tuple[bool, list[str]]:
     """Every (task, regime, repeat) block has identical audit records, prompt fingerprints and policy configurations
-    across modes, and every run carries the manifest's frozen hash."""
+    across modes, and every run carries the manifest's frozen hash.
+
+    `declared` (Experiment 0c only) maps a mode to the exact policy-configuration entries that mode is pre-registered
+    to differ by, e.g. {"central": {"central_first_step": "scripted"}}. A run of that mode must carry exactly those
+    values, which are then left out of the comparison; nothing else may differ. Without `declared`, any difference
+    fails, as before."""
     blocks = defaultdict(list)
     for s in starts:
         blocks[(s["task_id"], s["regime"], s["repeat"])].append(s)
     problems = []
     if frozen_sha is not None:
         problems += [f"{s['run_id']} ran under a different freeze" for s in starts if s["audit"].get("frozen_sha") != frozen_sha]
+
+    def compared_policy(s: dict):
+        policy = dict(s.get("policy") or {})
+        for k, v in (declared or {}).get(s["mode"], {}).items():
+            if policy.get(k) != v:
+                problems.append(f"{s['run_id']} does not carry its declared policy entry {k}={v!r}")
+            policy.pop(k, None)
+        return json.dumps(policy, sort_keys=True)
+
     for key, ss in blocks.items():
         if len({json.dumps(s["audit"], sort_keys=True) for s in ss}) > 1:
             problems.append(f"audit differs across modes in block {key}")
         if len({s["prompt_sha"] for s in ss}) > 1:
             problems.append(f"prompt fingerprint differs across modes in block {key}")
-        if len({json.dumps(s.get("policy"), sort_keys=True) for s in ss}) > 1:
+        if len({compared_policy(s) for s in ss}) > 1:
             problems.append(f"policy configuration differs across modes in block {key}")
     return not problems, problems
 

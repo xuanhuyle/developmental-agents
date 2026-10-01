@@ -10,6 +10,7 @@ EVENT_TYPES = {
     "RUN_STARTED", "AGENT_CREATED", "ACTION_STARTED", "ACTION_COMPLETED", "INFORMATION_QUERIED",
     "MESSAGE_SENT", "AGENT_SPAWNED", "RESOURCE_ALLOCATED", "RESOURCE_CONSUMED", "AGENT_TERMINATED",
     "RUN_COMPLETED",
+    "SCRIPTED_ACTION",  # Experiment 0c: a pre-registered decision the runtime charges like any other step
 }
 
 

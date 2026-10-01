@@ -1,0 +1,632 @@
+{
+ "experiment": "0c",
+ "spec": "SPEC_0C.md",
+ "spec_sha": "1f233ef55a48963af7f78a8c17103520a9a05de04366f779a1907c6deecc0498",
+ "decision_memo": "EXPERIMENT_0C_DECISION.md",
+ "decision_memo_sha": "f60404e258f862c3dc2ba03e2c82990febffbbc517414af1e1643fac7d4fce6d",
+ "source_freeze": {
+  "path": "data/exp0b/frozen.json",
+  "sha": "0d10865d595c013c362661da088272d35555fd298a963a88993bec4cf9ec50ff",
+  "prompt_sha": "53790f89f2a6ebef062d9ad31bd77d79546381fa2d4765302334ee9588f524b6"
+ },
+ "exp0_frozen_sha": "910bf2020f2fd62b7c94e9ca0ee504a16a9abb82a4a54635c04632192dfbb6f9",
+ "constants_sha": "be2c4523251ee9891b25d772ff7fc8ea90d2b17c2fd43eb77130ab265f462dcb",
+ "treatment": {
+  "policy_config_sha": "ffa7e95c6320ffe82c609e23d57b1a7a7e60994fc5a7eaebaa9dc8f4edc5bc6c",
+  "policy_class": "LLMPolicy",
+  "structured": true,
+  "effort": "low",
+  "prompt_fingerprint": "53790f89f2a6ebef062d9ad31bd77d79546381fa2d4765302334ee9588f524b6",
+  "prompt_fingerprint_by_cell": {
+   "X2|urgent": "8df882f877dc973be9aeb210332a8587fb1cdde32d6f19e8b3bd9124261ed894",
+   "T01|urgent": "8df882f877dc973be9aeb210332a8587fb1cdde32d6f19e8b3bd9124261ed894",
+   "T04|urgent": "8df882f877dc973be9aeb210332a8587fb1cdde32d6f19e8b3bd9124261ed894",
+   "T07|urgent": "8df882f877dc973be9aeb210332a8587fb1cdde32d6f19e8b3bd9124261ed894",
+   "T10|urgent": "8df882f877dc973be9aeb210332a8587fb1cdde32d6f19e8b3bd9124261ed894"
+  },
+  "developmental_mode_rules": "MODE RULES: You may SPAWN at any step; agents you create may also SPAWN.",
+  "mode_rules_sha": "df18259e091ce15536e98f1dd0f11e3e855620044450cd69b95f090460d04973",
+  "action_help_sha": "997fc50a557656f68f38c73bc5df22be0c07f3132059207c0b9caab1e0ab9b99",
+  "action_schema_sha": "29d3cdc5254105b64e0ce2d0c3459c0a5761a4d0c489bfd988bc0a9ef48d9b48",
+  "constants_sha": "be2c4523251ee9891b25d772ff7fc8ea90d2b17c2fd43eb77130ab265f462dcb",
+  "developmental_system_prompt_sha": {
+   "X2|urgent": {
+    "root": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576",
+    "child": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576"
+   },
+   "T01|urgent": {
+    "root": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576",
+    "child": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576"
+   },
+   "T04|urgent": {
+    "root": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576",
+    "child": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576"
+   },
+   "T07|urgent": {
+    "root": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576",
+    "child": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576"
+   },
+   "T10|urgent": {
+    "root": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576",
+    "child": "41b76cda0bb0529ae1d2c19704745ca550b106fec4e337729ae0cde1e42de576"
+   }
+  },
+  "root_brief_sha": {
+   "X2|urgent": "7f41d39a1a2f9f8416cea909c619afdc0bc15994cfd26c0c1e81a5ce5c97f3cf",
+   "T01|urgent": "0b5de8cbe7c25324b39e0ab4b68aecea24fa862d7fb70f61390f301fb14e5745",
+   "T04|urgent": "34ac137b24a44a268f09feaa4e90d881b55293f99c2164b01996928cd2cc4006",
+   "T07|urgent": "10e21fff9fb8d159106cc8e2d11b32e4a4bab064e811b0a5befd6c060f7af612",
+   "T10|urgent": "01bd7c402ab3c8d854150ace51196065d3c78248bb69e5614887d94b07150b54"
+  }
+ },
+ "declared_asymmetries": {
+  "central": {
+   "central_first_step": "scripted"
+  }
+ },
+ "scripted_central": {
+  "X2|urgent": {
+   "cell": "X2|urgent",
+   "task": "X2",
+   "org": "fanout3@r0",
+   "source": "calibrate.label router_div at the frozen 0b constants and assumptions (base point), unchanged code",
+   "k": 3,
+   "route": 0,
+   "partition": [
+    [
+     "region-northland",
+     "region-westreach"
+    ],
+    [
+     "region-eastmarch",
+     "region-midlands"
+    ],
+    [
+     "region-southvale",
+     "region-coastal"
+    ]
+   ],
+   "objectives": [
+    "Find the facts needed for: Across the six regions, who manages the region with the smallest headcount at the end of 2025-Q3? Answer with the manager's full name. Read only the sources named in this objective: region-northland; region-westreach",
+    "Find the facts needed for: Across the six regions, who manages the region with the smallest headcount at the end of 2025-Q3? Answer with the manager's full name. Read only the sources named in this objective: region-eastmarch; region-midlands",
+    "Find the facts needed for: Across the six regions, who manages the region with the smallest headcount at the end of 2025-Q3? Answer with the manager's full name. Read only the sources named in this objective: region-southvale; region-coastal"
+   ],
+   "contexts": [
+    "",
+    "",
+    ""
+   ],
+   "action": {
+    "rationale": "Split the work across agents.",
+    "action": "SPAWN",
+    "wait_for_children": true,
+    "children": [
+     {
+      "objective": "Find the facts needed for: Across the six regions, who manages the region with the smallest headcount at the end of 2025-Q3? Answer with the manager's full name. Read only the sources named in this objective: region-northland; region-westreach",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the six regions, who manages the region with the smallest headcount at the end of 2025-Q3? Answer with the manager's full name. Read only the sources named in this objective: region-eastmarch; region-midlands",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the six regions, who manages the region with the smallest headcount at the end of 2025-Q3? Answer with the manager's full name. Read only the sources named in this objective: region-southvale; region-coastal",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     }
+    ]
+   },
+   "action_sha": "2838c248990714abe594ad809ccd137c2ed1c3bc312e29a423e084e73c20726a"
+  },
+  "T01|urgent": {
+   "cell": "T01|urgent",
+   "task": "T01",
+   "org": "fanout3@r0",
+   "source": "data/exp0b/frozen.json calibration.cells['T01|urgent'].router_div",
+   "k": 3,
+   "route": 0,
+   "partition": [
+    [
+     "region-northland",
+     "region-westreach"
+    ],
+    [
+     "region-eastmarch",
+     "region-midlands"
+    ],
+    [
+     "region-southvale",
+     "region-coastal"
+    ]
+   ],
+   "objectives": [
+    "Find the facts needed for: Across the six regions, which reported the highest customer churn rate in 2025-Q3? Answer with the region name. Read only the sources named in this objective: region-northland; region-westreach",
+    "Find the facts needed for: Across the six regions, which reported the highest customer churn rate in 2025-Q3? Answer with the region name. Read only the sources named in this objective: region-eastmarch; region-midlands",
+    "Find the facts needed for: Across the six regions, which reported the highest customer churn rate in 2025-Q3? Answer with the region name. Read only the sources named in this objective: region-southvale; region-coastal"
+   ],
+   "contexts": [
+    "",
+    "",
+    ""
+   ],
+   "action": {
+    "rationale": "Split the work across agents.",
+    "action": "SPAWN",
+    "wait_for_children": true,
+    "children": [
+     {
+      "objective": "Find the facts needed for: Across the six regions, which reported the highest customer churn rate in 2025-Q3? Answer with the region name. Read only the sources named in this objective: region-northland; region-westreach",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the six regions, which reported the highest customer churn rate in 2025-Q3? Answer with the region name. Read only the sources named in this objective: region-eastmarch; region-midlands",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the six regions, which reported the highest customer churn rate in 2025-Q3? Answer with the region name. Read only the sources named in this objective: region-southvale; region-coastal",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     }
+    ]
+   },
+   "action_sha": "ddc6027f531b798faea280b7fe8410bcd946384683a32a35efee447bc2a05880"
+  },
+  "T04|urgent": {
+   "cell": "T04|urgent",
+   "task": "T04",
+   "org": "fanout4@r0",
+   "source": "data/exp0b/frozen.json calibration.cells['T04|urgent'].router_div",
+   "k": 4,
+   "route": 0,
+   "partition": [
+    [
+     "supplier-brisk",
+     "supplier-fenwright"
+    ],
+    [
+     "supplier-calloway",
+     "supplier-galloway"
+    ],
+    [
+     "supplier-dunmore",
+     "supplier-harrow"
+    ],
+    [
+     "supplier-eskerfield",
+     "supplier-ivel"
+    ]
+   ],
+   "objectives": [
+    "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-brisk; supplier-fenwright",
+    "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-calloway; supplier-galloway",
+    "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-dunmore; supplier-harrow",
+    "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-eskerfield; supplier-ivel"
+   ],
+   "contexts": [
+    "",
+    "",
+    "",
+    ""
+   ],
+   "action": {
+    "rationale": "Split the work across agents.",
+    "action": "SPAWN",
+    "wait_for_children": true,
+    "children": [
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-brisk; supplier-fenwright",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-calloway; supplier-galloway",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-dunmore; supplier-harrow",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, how many held a valid ISO 9001 certificate as of 2025-10-01? Answer with a number. Read only the sources named in this objective: supplier-eskerfield; supplier-ivel",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     }
+    ]
+   },
+   "action_sha": "33f74d8d9ea9943c234f7add5c517879a3d676b31041e4d7d65bf9ad6d9ab0c4"
+  },
+  "T07|urgent": {
+   "cell": "T07|urgent",
+   "task": "T07",
+   "org": "fanout3@r0",
+   "source": "data/exp0b/frozen.json calibration.cells['T07|urgent'].router_div",
+   "k": 3,
+   "route": 0,
+   "partition": [
+    [
+     "region-northland",
+     "region-westreach"
+    ],
+    [
+     "region-eastmarch",
+     "region-midlands"
+    ],
+    [
+     "region-southvale",
+     "region-coastal"
+    ]
+   ],
+   "objectives": [
+    "Find the facts needed for: Across the six regions, what was the total headcount at the end of 2025-Q3? Answer with a number. Read only the sources named in this objective: region-northland; region-westreach",
+    "Find the facts needed for: Across the six regions, what was the total headcount at the end of 2025-Q3? Answer with a number. Read only the sources named in this objective: region-eastmarch; region-midlands",
+    "Find the facts needed for: Across the six regions, what was the total headcount at the end of 2025-Q3? Answer with a number. Read only the sources named in this objective: region-southvale; region-coastal"
+   ],
+   "contexts": [
+    "",
+    "",
+    ""
+   ],
+   "action": {
+    "rationale": "Split the work across agents.",
+    "action": "SPAWN",
+    "wait_for_children": true,
+    "children": [
+     {
+      "objective": "Find the facts needed for: Across the six regions, what was the total headcount at the end of 2025-Q3? Answer with a number. Read only the sources named in this objective: region-northland; region-westreach",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the six regions, what was the total headcount at the end of 2025-Q3? Answer with a number. Read only the sources named in this objective: region-eastmarch; region-midlands",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the six regions, what was the total headcount at the end of 2025-Q3? Answer with a number. Read only the sources named in this objective: region-southvale; region-coastal",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     }
+    ]
+   },
+   "action_sha": "59290f1e13f1ea28453e3c869ab2ff9ef709ef93f44d28ddc6e69ccaa99ad5f2"
+  },
+  "T10|urgent": {
+   "cell": "T10|urgent",
+   "task": "T10",
+   "org": "fanout4@r0",
+   "source": "data/exp0b/frozen.json calibration.cells['T10|urgent'].router_div",
+   "k": 4,
+   "route": 0,
+   "partition": [
+    [
+     "supplier-brisk",
+     "supplier-fenwright"
+    ],
+    [
+     "supplier-calloway",
+     "supplier-galloway"
+    ],
+    [
+     "supplier-dunmore",
+     "supplier-harrow"
+    ],
+    [
+     "supplier-eskerfield",
+     "supplier-ivel"
+    ]
+   ],
+   "objectives": [
+    "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-brisk; supplier-fenwright",
+    "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-calloway; supplier-galloway",
+    "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-dunmore; supplier-harrow",
+    "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-eskerfield; supplier-ivel"
+   ],
+   "contexts": [
+    "",
+    "",
+    "",
+    ""
+   ],
+   "action": {
+    "rationale": "Split the work across agents.",
+    "action": "SPAWN",
+    "wait_for_children": true,
+    "children": [
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-brisk; supplier-fenwright",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-calloway; supplier-galloway",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-dunmore; supplier-harrow",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     },
+     {
+      "objective": "Find the facts needed for: Across the eight suppliers, which was founded earliest? Answer with the supplier name. Read only the sources named in this objective: supplier-eskerfield; supplier-ivel",
+      "context": "",
+      "budget_usd": 0.0,
+      "lifetime_s": 1.0
+     }
+    ]
+   },
+   "action_sha": "4c16effd94e9d74138b018d32251c91872d91974d9f4ab5828f062942ff0ce25"
+  }
+ },
+ "scripted_step_pricing": {
+  "input_scale": 2.0052,
+  "reasoning_tokens": 36,
+  "rule": "ScriptedPolicy pricing (SPEC §7.1), at the frozen 0b assumptions"
+ },
+ "pilot": {
+  "cells": [
+   "X2|urgent"
+  ],
+  "modes": [
+   "single",
+   "central"
+  ],
+  "repeats": 2,
+  "seed": 0,
+  "planned_runs": [
+   "X2-urgent-single-r0",
+   "X2-urgent-central-r0",
+   "X2-urgent-single-r1",
+   "X2-urgent-central-r1"
+  ],
+  "n_runs": 4,
+  "results": "results/exp0c/pilot"
+ },
+ "stage1": {
+  "cells": [
+   "T01|urgent",
+   "T04|urgent",
+   "T07|urgent",
+   "T10|urgent"
+  ],
+  "modes": [
+   "single",
+   "central",
+   "developmental"
+  ],
+  "repeats": 3,
+  "seed": 0,
+  "planned_runs": [
+   "T01-urgent-single-r0",
+   "T01-urgent-developmental-r0",
+   "T01-urgent-central-r0",
+   "T04-urgent-developmental-r0",
+   "T04-urgent-central-r0",
+   "T04-urgent-single-r0",
+   "T07-urgent-single-r0",
+   "T07-urgent-central-r0",
+   "T07-urgent-developmental-r0",
+   "T10-urgent-single-r0",
+   "T10-urgent-developmental-r0",
+   "T10-urgent-central-r0",
+   "T01-urgent-single-r1",
+   "T01-urgent-developmental-r1",
+   "T01-urgent-central-r1",
+   "T04-urgent-central-r1",
+   "T04-urgent-single-r1",
+   "T04-urgent-developmental-r1",
+   "T07-urgent-central-r1",
+   "T07-urgent-single-r1",
+   "T07-urgent-developmental-r1",
+   "T10-urgent-developmental-r1",
+   "T10-urgent-single-r1",
+   "T10-urgent-central-r1",
+   "T01-urgent-developmental-r2",
+   "T01-urgent-central-r2",
+   "T01-urgent-single-r2",
+   "T04-urgent-central-r2",
+   "T04-urgent-single-r2",
+   "T04-urgent-developmental-r2",
+   "T07-urgent-developmental-r2",
+   "T07-urgent-single-r2",
+   "T07-urgent-central-r2",
+   "T10-urgent-central-r2",
+   "T10-urgent-single-r2",
+   "T10-urgent-developmental-r2"
+  ],
+  "n_runs": 36,
+  "results": "results/exp0c/stage1"
+ },
+ "rules": {
+  "pilot": {
+   "all_planned_runs_complete": true,
+   "central_conditions": [
+    "scripted_spawn_accepted",
+    "exact_k_children",
+    "exact_partition",
+    "no_child_starved",
+    "no_cap_failure",
+    "every_child_queried_its_assignment",
+    "completed_with_answer"
+   ],
+   "manipulation": "mean fitness(scripted central) > mean fitness(single), X2 urgent, strict"
+  },
+  "stage1": {
+   "completion_min_fraction_per_mode": 0.9,
+   "min_completed_runs_per_cell_and_mode": 2,
+   "single_accuracy_min": 0.75,
+   "single_cap_rate_max": 0.05,
+   "max_non_intact_central_runs": 1,
+   "manipulation": "mean fitness(scripted central) > mean fitness(single) over the four P cells, strict",
+   "criterion2_indicator": "parallel",
+   "criterion2_threshold": 0.5,
+   "criterion2_fires_iff": "parallel_rate(P) < threshold"
+  }
+ },
+ "code_sha": {
+  "devagents/__main__.py": "4dec1810686083c3d6cd887d81d3261389403a1d24ff5296e08f7dcc1cdc2b16",
+  "devagents/config.py": "584879a24b9f0c57373a16ff05785348fd4ab5bfc0096d2282208253c0fdda81",
+  "devagents/agents/policies.py": "6dc14cea9a44e26ec285088945369634ff42348c4108016e84b62a47f2ef588b",
+  "devagents/agents/prompts.py": "25c500eb13ef727cd7d17bbea74632daa9456eb81ec0a9b54a3696b27806fb5b",
+  "devagents/agents/scripted_central.py": "a2ea9b35f46d41d6a05a339e86c00bd9c9f5f52e098ef88724065d615c318725",
+  "devagents/environment/sources.py": "85be1baa26194a109fbcdfd2bae16087de0a29a81c544a8f1f1ca5b6ae0dad0e",
+  "devagents/environment/tasks.py": "6853c2b1bb5c48d1b3ad278e27a67e14071cd8f8f326d9faacc3f7ec4f5e0772",
+  "devagents/environment/world.py": "f8de483bf2de71125e45d9365019d5e7baecc97ca971a6499317257f7faaaaaa",
+  "devagents/evals/analysis.py": "6784da6609b1f5108b9ab226744afea962cdf672d9f5765305b72672b8ea9fc9",
+  "devagents/evals/calibrate.py": "22cf9d81ff1187fb4412b7d62ee0718c9f88d8f5f5ffbd0ec45d4523ac5a5fdc",
+  "devagents/evals/exp0c.py": "814a039df672f76fa1b41c59183c53955237dfe4e5c64536facd9aba9300810b",
+  "devagents/evals/experiment.py": "fe416aadc5ef7d2b3c7d416be667c0d01d3b6d5b8a265e1f70af4bab8046d46a",
+  "devagents/evals/metrics.py": "42aa6022bb2c36d6451bffa3df294d736b5ffec7190874b67a6d1fdf86635047",
+  "devagents/evals/report.py": "05814d06ecdf488559a9fdf7c0c501fd189a74e2b607d05acc8fdef5e9497ac1",
+  "devagents/runtime/events.py": "115c81ae74cd2d84a91164f8a5a64ded4ef7c31e63a208dcaa10ed01378f5beb",
+  "devagents/runtime/resources.py": "7569b0839083689183d3e3145447e9c60210e998c2f4ba5e778521bc0d1956b4",
+  "devagents/runtime/runtime.py": "cba2708ea0996478f4debceffbfce322f406f1b99120955955283fe2d541f101"
+ },
+ "offline_geometry": {
+  "frozen": {
+   "assumptions": {
+    "input_scale": 2.0052,
+    "reasoning_tokens": 36,
+    "extra_work_steps": 0
+   },
+   "cells": {
+    "X2|urgent": {
+     "single": 0.3545,
+     "central_one_child": 0.2914,
+     "scripted_central": 0.5569,
+     "oracle_fanout_central": 0.5569,
+     "scripted_parallel": true,
+     "scripted_agents": 4,
+     "scripted_llm_calls": 8
+    },
+    "T01|urgent": {
+     "single": 0.3547,
+     "central_one_child": 0.2922,
+     "scripted_central": 0.5588,
+     "oracle_fanout_central": 0.5588,
+     "scripted_parallel": true,
+     "scripted_agents": 4,
+     "scripted_llm_calls": 8
+    },
+    "T04|urgent": {
+     "single": 0.3352,
+     "central_one_child": 0.2717,
+     "scripted_central": 0.5475,
+     "oracle_fanout_central": 0.5475,
+     "scripted_parallel": true,
+     "scripted_agents": 5,
+     "scripted_llm_calls": 10
+    },
+    "T07|urgent": {
+     "single": 0.3548,
+     "central_one_child": 0.2927,
+     "scripted_central": 0.56,
+     "oracle_fanout_central": 0.56,
+     "scripted_parallel": true,
+     "scripted_agents": 4,
+     "scripted_llm_calls": 8
+    },
+    "T10|urgent": {
+     "single": 0.335,
+     "central_one_child": 0.2721,
+     "scripted_central": 0.5497,
+     "oracle_fanout_central": 0.5497,
+     "scripted_parallel": true,
+     "scripted_agents": 5,
+     "scripted_llm_calls": 10
+    }
+   },
+   "stage1_means": {
+    "single": 0.3449,
+    "central_one_child": 0.2822,
+    "scripted_central": 0.554
+   },
+   "ordering_holds": true,
+   "mechanics_problems": []
+  },
+  "live_0b": {
+   "assumptions": {
+    "input_scale": 2.0277,
+    "reasoning_tokens": 45,
+    "extra_work_steps": 0
+   },
+   "cells": {
+    "X2|urgent": {
+     "single": 0.3526,
+     "central_one_child": 0.288,
+     "scripted_central": 0.5524,
+     "oracle_fanout_central": 0.5516,
+     "scripted_parallel": true,
+     "scripted_agents": 4,
+     "scripted_llm_calls": 8
+    },
+    "T01|urgent": {
+     "single": 0.3528,
+     "central_one_child": 0.2888,
+     "scripted_central": 0.5542,
+     "oracle_fanout_central": 0.5535,
+     "scripted_parallel": true,
+     "scripted_agents": 4,
+     "scripted_llm_calls": 8
+    },
+    "T04|urgent": {
+     "single": 0.3332,
+     "central_one_child": 0.2682,
+     "scripted_central": 0.542,
+     "oracle_fanout_central": 0.5413,
+     "scripted_parallel": true,
+     "scripted_agents": 5,
+     "scripted_llm_calls": 10
+    },
+    "T07|urgent": {
+     "single": 0.3529,
+     "central_one_child": 0.2892,
+     "scripted_central": 0.5554,
+     "oracle_fanout_central": 0.5546,
+     "scripted_parallel": true,
+     "scripted_agents": 4,
+     "scripted_llm_calls": 8
+    },
+    "T10|urgent": {
+     "single": 0.3331,
+     "central_one_child": 0.2687,
+     "scripted_central": 0.5442,
+     "oracle_fanout_central": 0.5435,
+     "scripted_parallel": true,
+     "scripted_agents": 5,
+     "scripted_llm_calls": 10
+    }
+   },
+   "stage1_means": {
+    "single": 0.343,
+    "central_one_child": 0.2787,
+    "scripted_central": 0.549
+   },
+   "ordering_holds": true,
+   "mechanics_problems": []
+  }
+ },
+ "created_at": "2026-10-01T10:24:42Z"
+}

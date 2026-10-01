@@ -44,8 +44,13 @@ ALL_ACTIONS = ["WORK", "QUERY", "SPAWN", "MESSAGE", "WAIT", "TERMINATE"]
 NO_SPAWN = ["WORK", "QUERY", "MESSAGE", "WAIT", "TERMINATE"]
 
 
-def policy_config(policy) -> dict:
-    """Everything about the policy that changes what the model sees or may output (logged, checked for parity)."""
+def policy_config(policy, mode: str | None = None) -> dict:
+    """Everything about the policy that changes what the model sees or may output (logged, checked for parity).
+    A policy that behaves differently in some mode (Experiment 0c's scripted `central` first step) reports that
+    through `config_for_mode(mode)`, so the difference is declared in every run's log rather than hidden."""
+    own = getattr(policy, "config_for_mode", None)
+    if own is not None:
+        return own(mode)
     compute = getattr(policy, "compute", None)
     return {"class": type(policy).__name__, "structured": getattr(policy, "structured", None),
             "model": getattr(compute, "model", None), "effort": getattr(compute, "effort", None)}
@@ -198,7 +203,7 @@ class Run:
                       mode=cfg.mode, repeat=cfg.repeat, budget=self.ledger.budget, deadline_s=cfg.regime.deadline_s,
                       value_of_time=cfg.regime.value_of_time, compute=asdict(cfg.compute),
                       audit=cfg.resource_audit(self.info), prompt_sha=self.prompt_fingerprint(),
-                      policy=policy_config(self.policy))
+                      policy=policy_config(self.policy, cfg.mode))
         root = self._create_agent(None, objective=cfg.task.question, context="", deadline=us(cfg.regime.deadline_s),
                                   t=0, allocation=0)
         while self._queue and self.end_time is None:

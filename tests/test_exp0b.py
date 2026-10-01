@@ -19,6 +19,12 @@ EXP0_FROZEN_SHA = "910bf2020f2fd62b7c94e9ca0ee504a16a9abb82a4a54635c04632192dfbb
 FROZEN_0B = load_frozen(EXPERIMENTS["0b"].frozen)
 
 
+def sha256_lf(path) -> str:
+    """sha256 as committed (LF): a Windows checkout with core.autocrlf must not fail these pins."""
+    import hashlib
+    return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def synthetic(cells, seed=1, repeats=3):
     import random
     return synthetic_records(cells, lambda c, rng: "div" if c["label"] == "P" else "solo", repeats,
@@ -70,7 +76,7 @@ def test_experiment_0_keeps_its_paths_constants_and_frozen_file():
     c = default_constants()
     assert {k: (r.budget_usd, r.task_value, r.value_of_time) for k, r in c.regimes.items()} == {
         "relaxed": (1.0, 0.5, 0.00005), "urgent": (1.0, 0.5, 0.0008)}
-    assert sha256_file(FROZEN_PATH) == EXP0_FROZEN_SHA
+    assert sha256_lf(FROZEN_PATH) == EXP0_FROZEN_SHA
 
 
 # --------------------------------------------------------------------------- the Experiment 0b configuration
@@ -119,7 +125,7 @@ def test_the_0b_freeze_verifies_and_is_the_preregistered_one():
     assert (labels.count("S"), labels.count("P"), labels.count("ambiguous")) == (23, 4, 3)
     sizes = {k: len(v) for k, v in f["calibration"]["gate"]["sets"].items()}
     assert (sizes["S_urgent"], sizes["P_urgent"], sizes["twin"], sizes["D_urgent"], sizes["I"]) == (8, 4, 8, 3, 0)
-    assert f["spec_sha"] == sha256_file(EXPERIMENTS["0b"].spec) and f["base_spec_sha"] == sha256_file(SPEC_PATH)
+    assert f["spec_sha"] == sha256_lf(EXPERIMENTS["0b"].spec) and f["base_spec_sha"] == sha256_lf(SPEC_PATH)
 
 
 def test_run_and_report_refuse_a_frozen_file_or_suite_from_the_other_experiment(tmp_path):

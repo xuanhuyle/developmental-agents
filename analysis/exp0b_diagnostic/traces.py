@@ -331,9 +331,9 @@ def main(argv=None) -> int:
         res["pilot"] = pilot(Path(a.pilot))
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "traces.json").write_text(json.dumps(res, indent=1, default=str))
+    (out / "traces.json").write_text(json.dumps(res, indent=1, default=str), encoding="utf-8")
     md = markdown(res)
-    (out / "traces.md").write_text(md)
+    (out / "traces.md").write_text(md, encoding="utf-8")
     print(md)
     return 0
 

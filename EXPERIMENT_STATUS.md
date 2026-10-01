@@ -205,3 +205,54 @@ non-provisional freeze. No `developmental` or `router` LLM output exists, and no
   - Tests grew from 100 to 109, all passing.
   - No live developmental or router output exists; no Anthropic API call was made. The main run has not been
     started. Next: `python -m devagents run --experiment 0b`.
+- 2026-09-30, **Experiment 0b main run completed** (run locally by the experimenter; the logs in
+  `results/exp0b/main` are not in this repository). Recorded here on 2026-10-01; this entry was missing and is
+  appended, not back-dated.
+  - **360/360 planned runs completed, 0 infrastructure failures**, R = 3, under the frozen configuration
+    `data/exp0b/frozen.json`, sha256 `0d10865d595c013c362661da088272d35555fd298a963a88993bec4cf9ec50ff`.
+  - **Report verdict: UNINFORMATIVE.** Validity condition (v), the realized manipulation check, **FAILED**:
+    - B-urgent: `central` mean fitness 0.2830, `single` 0.3552 (required: `central` > `single`; failed);
+    - B-relaxed: `central` 0.8244 < `single` 0.8771 (as required);
+    - A: `single` 0.8913 ≥ `central` 0.8821 (as required).
+  - The independent recomputation with `analysis/exp0b_diagnostic/traces.py` reproduced the report exactly, and the
+    evaluator's criteria statistics agree with it.
+  - **Descriptive findings (no verdict weight):**
+    - `developmental` made zero SPAWN attempts in its 90 runs, and `router` zero in its 90 runs; no SPAWN was
+      rejected. In the P cells both roots read every document in one QUERY.
+    - `central` created exactly one child in every main run, and in every pilot run. No pilot or 0b run ever had two
+      or more children.
+    - Offline (LLM-free, real runtime modes, 0b constants, the live token statistics r 2.0277 and 45 reasoning
+      tokens): a one-child `central` scores 0.279 against 0.343 for `single`, and the calibrated 3–4-child fan-out
+      0.548. The failed check is explained by the realized one-child topology.
+  - **These descriptive findings do not override or retrospectively change the verdict.** Experiment 0b is
+    permanently recorded as **UNINFORMATIVE because the preregistered realized manipulation check failed.**
+  - Diagnostic: `EXPERIMENT_0B_DIAGNOSTIC.md`, commit `44da120e65f3cb391e85a911e637d8a495ebf298`.
+  - Decision memo: `EXPERIMENT_0C_DECISION.md`, commit `931a7c1e9138436aa960140611aab1b81c4cc9cc` (accepted: option
+    B, a small clean replication with a scripted `central`).
+- 2026-10-01, **Experiment 0c pre-registered** (`SPEC_0C.md`), implementing option B of
+  `EXPERIMENT_0C_DECISION.md` (931a7c1): a held-out X2 instrument pilot (4 runs), then a narrow Stage 1 (36 runs), with
+  a scripted `central` and the `developmental` treatment unchanged. Implementation and pre-registration only: **no API
+  call was made, no live run was started, and Experiment 0b is unchanged** (still UNINFORMATIVE).
+  - **Pre-registration file:** `data/exp0c/prereg.json`, sha256 (LF-normalized)
+    `75e478ca485462ebedf759b63c4dfba94c2b6a4fc157c5aa90aa39618e6f78d0`. It pins the constants (0b's), the treatment
+    hashes, the scripted topologies, both suites, the rules, the deciding code and the offline geometry.
+  - **The only scientific change:** `central`'s first step is the oracle's pre-existing one-shot SPAWN, charged like a
+    calibration oracle step (frozen r = 2.0052, 36 reasoning tokens) and logged as `SCRIPTED_ACTION`. Topologies:
+    X2 urgent `fanout3` (the unchanged calibration rule at the 0b freeze's constants; pre-declared in the memo),
+    T01/T07 urgent `fanout3`, T04/T10 urgent `fanout4` (the 0b freeze's `router_div`), partition `docs[i::k]`.
+  - **Stage 0 offline checks (`python -m devagents exp0c verify`): all 15 pass.** They cover: 0/0b frozen files
+    unchanged; the 0b freeze verifies; the 0b prompt fingerprint; `prereg.json` equals its recomputation; k and
+    partitions; t0-only objectives; SPAWN serialization; suite sizes; mechanics (allocation, lifetime, fees, caps,
+    reserves); geometry; the treatment files and the request/event stream equal 0b's own code (67c9d50); 0b's caps;
+    the scripted step reproduces the oracle fan-out exactly. A simulated CRLF (Windows) checkout verifies identically.
+  - **Offline geometry, Stage 1 means** (fitness; single / one-child central / scripted central): frozen assumptions
+    0.3449 / 0.2822 / 0.5540; the 0b main run's token statistics (r 2.0277, 45 reasoning tokens) 0.3430 / 0.2787 /
+    0.5490. X2: 0.3545 / 0.2914 / 0.5569 (frozen), 0.3526 / 0.2880 / 0.5524 (live).
+  - **Infrastructure-only fixes:** UTF-8 report writes (the Windows cp1252 failure on U+2212) and a stdout that
+    replaces unencodable characters; LF-normalized hashing in the 0b tests. No number changes.
+  - **Review:** four independent reviewers and a verifier. Two blocking findings (a re-run could re-attempt spent runs
+    and overwrite a decision; an interrupted run's partial live log would be deleted) and the important ones were fixed
+    before this pre-registration was generated.
+  - Tests grew from 109 to 202, all passing.
+  - **Next live action:** `python -m devagents exp0c pilot` (the 4-run X2 pilot only). Stage 1 runs only after a PASS,
+    and after `data/exp0c/pilot_record.json` and the pilot's outcome are committed here.
