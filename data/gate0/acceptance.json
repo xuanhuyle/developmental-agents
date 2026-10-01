@@ -1,0 +1,51 @@
+{
+  "spec": "GATE_0_SPEC.md",
+  "version": 1,
+  "delta": 0.03,
+  "constants": {
+    "source": "data/exp0b/frozen.json",
+    "key": "constants",
+    "sha256_canonical": "8086c70e1619634d35417b96eb0a58109a951cc5616672815bd1b790cf8bad98"
+  },
+  "token_base": {"input_scale": 2.0052, "reasoning_tokens": 36, "extra_work_steps": 0},
+  "token_grid": "devagents.evals.calibrate.grid(token_base): input_scale x {0.75, 1, 1.25}, reasoning_tokens x {0.5, 1, 2}, extra WORK steps per agent {0, 1}; 18 points",
+  "env_perturbations": [
+    {"name": "doc_latency_x0.8", "doc_per_token_s": 0.8},
+    {"name": "doc_latency_x1.25", "doc_per_token_s": 1.25},
+    {"name": "value_of_time_x0.8", "value_of_time": 0.8},
+    {"name": "value_of_time_x1.25", "value_of_time": 1.25},
+    {"name": "coordination_fees_x2", "coord_fees": 2},
+    {"name": "message_latency_x4", "message_latency_s": 4}
+  ],
+  "robust_fraction": 0.5,
+  "prior": "uniform over the members of each reveal set",
+  "sanity": {"min_best": 0.5, "min_solo": 0.3},
+  "qualify": {"min_cells": 4, "min_templates": 2, "min_cells_per_template": 2},
+  "uneconomic_controls": {"min_worlds": 2, "min_instances": 2},
+  "dissociation": {"min_cells": 2},
+  "rule_families": {
+    "constant": {"features": [], "post_reveal": false, "gating": true},
+    "surface_t0": {"features": ["urgent", "n_units", "n_catalog_docs"], "post_reveal": false, "gating": true,
+                   "conjunction": true, "urgent_threshold": 0.0005916},
+    "surface_post": {"features": ["n_needed"], "post_reveal": true, "gating": true},
+    "workload_t0": {"features": ["cand_read_s"], "post_reveal": false, "gating": true},
+    "workload_post": {"features": ["needed_read_s", "max_needed_s"], "post_reveal": true, "gating": true},
+    "economic_t0": {"features": ["vot_x_cand_read"], "post_reveal": false, "gating": false},
+    "economic_post": {"features": ["vot_x_needed_read"], "post_reveal": true, "gating": false}
+  },
+  "dissolution": {"min_cells": 1},
+  "power": {
+    "max_runs": 400,
+    "min_power": 0.80,
+    "R_A": 1,
+    "R_S": 2,
+    "seed": 20261001,
+    "primary": {"pi": 0.8, "logit_sd": 0.5, "rho": 0.5, "sigma": 0.05, "p_fail": 0.02, "tau_sim": 0.02,
+                "eta": 0.01, "s_ctl": 0.10, "contrast_min": 0.30, "accuracy_margin": 0.10, "spawn_rate_max": 0.20},
+    "search": {"R_M": [6, 8, 10, 12, 15, 20], "R_B": [4, 6, 8, 10, 12], "n_sim": 150, "n_boot": 200},
+    "final": {"n_sim": 600, "n_boot": 600, "sens_n_sim": 200},
+    "cost": {"checkpoints": 2, "checkpoint_output_tokens": 2000, "wall_s_per_call": 8, "checkpoint_wall_s": 40}
+  },
+  "rounds": {"max": 2, "max_reevaluations": 2},
+  "decision": "INDETERMINATE if G1 (integrity) fails or the evaluation cannot complete; otherwise PASS if every criterion G2-G9 passes, else FAIL"
+}

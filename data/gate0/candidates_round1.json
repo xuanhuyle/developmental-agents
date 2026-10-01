@@ -1,0 +1,13 @@
+{
+  "round": 1,
+  "rationale": "Chosen analytically before any candidate evaluation (GATE_0_SPEC.md §4.4). A: n = 7-8 needed documents so that the one-shot router's best compromise (dividing with k = 2-4 in both members) loses about 0.05 against the oracle; long documents sized so that answering alone still scores >= 0.3 in the urgent long member. B: a slow memo (~100-120 s) so that speculation pays in the member where the heavy unit is live, and a heavy unit (~150 s) that is still on the critical path after the memo in the member where it is dead; sized so that the best organization still scores >= 0.5. Three instances per template, in different domains, so that at least two per template can qualify if the template is viable. D is Experiment 0b's T01 with every region report shortened.",
+  "instances": [
+    {"template": "A", "id": "A1", "domain": "incident", "n_candidates": 16, "first_number": 2041, "long_tokens": 360, "tiny_tokens": 40},
+    {"template": "A", "id": "A2", "domain": "audit", "n_candidates": 16, "first_number": 3107, "long_tokens": 380, "tiny_tokens": 36},
+    {"template": "A", "id": "A3", "domain": "account", "n_candidates": 14, "first_number": 5520, "long_tokens": 420, "tiny_tokens": 40},
+    {"template": "B", "id": "B1", "domain": "lines", "heavy": ["Kestrel", 1450], "lights": [["Arden", 320]], "phantom": "Pelican", "memo_tokens": 1030},
+    {"template": "B", "id": "B2", "domain": "tracks", "heavy": ["Meridian", 1350], "lights": [["Osprey", 250], ["Talon", 250]], "phantom": "Larkspur", "memo_tokens": 950},
+    {"template": "B", "id": "B3", "domain": "bids", "heavy": ["Corvane", 1500], "lights": [["Ashby", 380]], "phantom": "Halcyon", "memo_tokens": 1150},
+    {"template": "D", "id": "D", "base_task": "T01"}
+  ]
+}
