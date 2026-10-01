@@ -1,0 +1,8 @@
+{
+ "experiment": "0c",
+ "stage": "pilot",
+ "prereg_sha": "75e478ca485462ebedf759b63c4dfba94c2b6a4fc157c5aa90aa39618e6f78d0",
+ "manifest_created_at": "2026-10-01T14:42:30Z",
+ "verdict": "PASS",
+ "decision_sha": "f224ee15cf1eec7dbe1d44b495739a25ff5e966c76165c01ee1b087e37927be2"
+}
