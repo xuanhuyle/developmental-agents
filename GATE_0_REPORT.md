@@ -30,7 +30,7 @@ organizational adaptation has measurable value over strong precommitted alternat
    - The gated G9 was not computed, because no cell qualified.
    - Descriptively, treating all six urgent cells as if they had qualified, the deliberation follow-up has power 0.000.
      At the declared checkpoint price, no effect size the runtime allows could make it pay.
-   - The presentation follow-up has power 0.009 against the frozen baseline, and RTONLY_PRES against the router alone.
+   - The presentation follow-up has power 0.009 against the frozen baseline, and 0.115 against the router alone.
 
 Results 2 and 3 were forecast before any evaluation (GATE_0_SPEC.md §4; acceptance.json
 `expectation_not_a_criterion`). Round 1 confirms the design analysis rather than discovering something new.
@@ -104,7 +104,7 @@ GATE_0_SPEC.md §5. In brief:
 | 29a7dfd | genesis entry `ec505a1a…`, pinning commit 31718d2: acceptance `80cbe516…`, spec `6edbf7f2…`, candidates `5ae31282…`, the 7 world digests, CPython 3.11, the remote and branch |
 | beb48d6 | `evaluation_started`, published before anything was simulated |
 | c2f01fd | `evaluation_progress` (G1–G8 decision FAIL) and `evaluation_completed` (FAIL); `results.json` `ef973f6b…`, `records.json` `6c2d53d1…` |
-| da2e9fc, 91509ea, POSTHOC_COMMIT | post-hoc analysis from the logged records (descriptive) |
+| da2e9fc, 91509ea, bb73586, POSTHOC_COMMIT | post-hoc analysis from the logged records (descriptive) |
 | DECIDE_COMMIT | `decision` entry: round 1 closed as FAIL |
 
 `python -m devagents.gate0 verify` checks the chain, the pinned hashes, the result and record hashes, the audit's
@@ -243,7 +243,7 @@ Against the router alone, the result depends on δ and on the grid's extra-step 
 so no advantage for developmental intelligence is claimed. The post-hoc evidence (`typed_rules_vs_oracle`):
 - **Template A, urgent.** `needed_read_s ≥ 126.8 ? divide : solo`, with the divided shape chosen per grid point as A\*'s
   is, is within 0.0065 of A\* in every cell at every grid point (0 at 12 of 18).
-  - With one shape fixed over the whole grid, the best rule (FIXED_RULE) comes within FIXED_SHORT. A rule that also
+  - With one shape fixed over the whole grid, the best rule (`needed_read_s ≥ 126.8 ? W:self+2 : W:solo`) falls short by up to 0.036, just over δ. A rule that also
     switches shape on the extra-step cost stays within δ.
 - **Template B, urgent.** The unconditional pipeline `W:spec2+dissolve` equals A\* exactly.
 - **Relaxed.** `W:solo` (A) and `W:blind` (B) equal A\*.
@@ -274,12 +274,12 @@ favourable.
 
 | | presentation, frozen baseline | presentation, Rt only | deliberation (either baseline) |
 |---|---|---|---|
-| allocation (R_M, R_B = R_N, R_ABL, R_S) | 6, 8, 3, 4 | RT_ALLOC | 6, 4, 2, 2 |
-| runs | 360 | RT_RUNS | 228 |
-| **joint power, primary** | **0.009** | **RTONLY_PRES** | **0.000** |
-| joint pessimistic scenario | 0.001 | RT_PESS | 0.000 |
-| power at the grid-minimum effects | 0.000 | RT_GRIDMIN | 0.000 |
-| API calls / list-price $ / sequential hours | 2,152 / $36.09 / 4.8 h | RT_COST | 1,868 / $50.07 / 8.4 h (frozen); RT_DCOST (Rt only) |
+| allocation (R_M, R_B = R_N, R_ABL, R_S) | 6, 8, 3, 4 | 6, 8, 4, 3 | 6, 4, 2, 2 |
+| runs | 360 | 360 | 228 |
+| **joint power, primary** | **0.009** | **0.115** | **0.000** |
+| joint pessimistic scenario | 0.001 | 0.009 | 0.000 |
+| power at the grid-minimum effects | 0.000 | 0.039 | 0.000 |
+| API calls / list-price $ / sequential hours | 2,152 / $36.09 / 4.8 h | 1,960 / $34.19 / 4.4 h | 1,868 / $50.07 / 8.4 h (frozen); 1,772 / $49.12 / 8.2 h (Rt only) |
 
 The cost figures charge the oracle's plan and its mean checkpoints to every M, ABL and control run. They are upper
 bounds: under the model's own failure assumptions the expected deliberation cost is about $42 and 6.9 h.

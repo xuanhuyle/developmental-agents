@@ -95,7 +95,7 @@
    "A*": 0.5997197268965517,
    "A*_plans": {
     "X": "spec2>dissolve",
-    "Y": "spec2>cancel"
+    "Y": "spec2>wait"
    },
    "H*": 0.6050395926436781,
    "Rt": 0.5438143586206896,
@@ -121,7 +121,7 @@
    "A*": 0.6071635043678161,
    "A*_plans": {
     "X": "spec2>dissolve",
-    "Y": "spec2>cancel"
+    "Y": "spec2>wait"
    },
    "H*": 0.6154626744827585,
    "Rt": 0.5547298363218389,
@@ -147,7 +147,7 @@
    "A*": 0.58220408,
    "A*_plans": {
     "X": "spec2>dissolve",
-    "Y": "spec2>cancel"
+    "Y": "spec2>wait"
    },
    "H*": 0.598803580229885,
    "Rt": 0.5496032735632184,
@@ -186,8 +186,8 @@
    "control_worlds": 12,
    "cost": {
     "deliberation": {
-     "api_calls": 1868,
-     "api_usd": 50.07,
+     "api_calls": 1772,
+     "api_usd": 49.12,
      "assumptions": {
       "checkpoint_input_tokens": 4000,
       "checkpoint_output_tokens": 2000,
@@ -214,16 +214,16 @@
        0.05942366666666667
       ],
       "B": [
-       6.833333333333333,
-       0.11206699999999999
+       5.833333333333333,
+       0.10220633333333333
       ],
       "M": [
        7.0,
        0.114043
       ],
       "N": [
-       6.833333333333333,
-       0.11206699999999999
+       5.833333333333333,
+       0.10220633333333333
       ],
       "controls": [
        3.0,
@@ -238,11 +238,11 @@
       "N": 48,
       "controls": 24
      },
-     "sequential_wall_hours": 8.4
+     "sequential_wall_hours": 8.2
     },
     "presentation": {
-     "api_calls": 2152,
-     "api_usd": 36.09,
+     "api_calls": 1960,
+     "api_usd": 34.19,
      "assumptions": {
       "checkpoint_input_tokens": 4000,
       "checkpoint_output_tokens": 2000,
@@ -269,16 +269,16 @@
        0.05942366666666667
       ],
       "B": [
-       6.833333333333333,
-       0.11206699999999999
+       5.833333333333333,
+       0.10220633333333333
       ],
       "M": [
        7.0,
        0.114043
       ],
       "N": [
-       6.833333333333333,
-       0.11206699999999999
+       5.833333333333333,
+       0.10220633333333333
       ],
       "controls": [
        3.0,
@@ -293,7 +293,7 @@
       "N": 96,
       "controls": 36
      },
-     "sequential_wall_hours": 4.8
+     "sequential_wall_hours": 4.4
     }
    },
    "deliberation": {
@@ -486,8 +486,8 @@
        "Y": 4
       },
       "b": {
-       "X": 4,
-       "Y": 4
+       "X": 2,
+       "Y": 2
       },
       "d": {
        "X": 2,
@@ -504,8 +504,8 @@
        "Y": 4
       },
       "b": {
-       "X": 4,
-       "Y": 4
+       "X": 3,
+       "Y": 3
       },
       "d": {
        "X": 2,
@@ -522,8 +522,8 @@
        "Y": 4
       },
       "b": {
-       "X": 4,
-       "Y": 4
+       "X": 3,
+       "Y": 3
       },
       "d": {
        "X": 2,
@@ -756,8 +756,8 @@
        "Y": 4
       },
       "b": {
-       "X": 4,
-       "Y": 4
+       "X": 2,
+       "Y": 2
       },
       "d": {
        "X": 2,
@@ -813,8 +813,8 @@
        "Y": 4
       },
       "b": {
-       "X": 4,
-       "Y": 4
+       "X": 3,
+       "Y": 3
       },
       "d": {
        "X": 2,
@@ -870,8 +870,8 @@
        "Y": 4
       },
       "b": {
-       "X": 4,
-       "Y": 4
+       "X": 3,
+       "Y": 3
       },
       "d": {
        "X": 2,
@@ -1057,7 +1057,7 @@
     "pessimistic_one_at_a_time": {
      "effects_x0.8": 0.06466666666666666,
      "eta=0.02": 0.048,
-     "grid_minimum_effects": 0.13466666666666666,
+     "grid_minimum_effects": 0.03866666666666667,
      "logit_sd=3.0": 0.08266666666666667,
      "p_fail=0.12": 0.7493333333333333,
      "p_fail_M=0.12": 0.0006666666666666666,
@@ -2225,6 +2225,20 @@
     "A1|urgent",
     "A2|urgent"
    ]
+  },
+  "router only, at delta/2": {
+   "g4_would_pass": true,
+   "per_template": {
+    "A": 3,
+    "B": 2
+   },
+   "qualifying": [
+    "A1|urgent",
+    "A2|urgent",
+    "A3|urgent",
+    "B2|urgent",
+    "B3|urgent"
+   ]
   }
  },
  "g5_min_solo_minus_division": {
@@ -2240,6 +2254,7 @@
   "B3/urgent/Y": -0.16628377747126433
  },
  "reproduction": {
+  "base_table_equal": true,
   "cells_equal": true,
   "criteria_equal": {
    "G1_integrity": true,
@@ -2254,6 +2269,20 @@
  "source": {
   "records_sha": "6c2d53d10e662e3417f811bbf45a0288a6aa91af2e0cc53685c86462e0faddef",
   "results_sha": "ef973f6bf7aa7a812d8b6fac7f8fe3e9e3c69d60e499548e45c9cd46c7a905d4"
+ },
+ "typed_rule_A_urgent_fixed_shape": {
+  "all": {
+   "needed_read_s>=126.8 ? W:fan2 : W:solo": 0.03725936919540229,
+   "needed_read_s>=126.8 ? W:fan3 : W:solo": 0.04083345103448277,
+   "needed_read_s>=126.8 ? W:fan4 : W:solo": 0.046811373793103406,
+   "needed_read_s>=126.8 ? W:fan5 : W:solo": 0.08893386804597703,
+   "needed_read_s>=126.8 ? W:self+1 : W:solo": 0.03596396137931035,
+   "needed_read_s>=126.8 ? W:self+2 : W:solo": 0.0358762275862069,
+   "needed_read_s>=126.8 ? W:self+3 : W:solo": 0.04374675356321833,
+   "needed_read_s>=126.8 ? W:self+4 : W:solo": 0.08372236275862072
+  },
+  "best_rule": "needed_read_s>=126.8 ? W:self+2 : W:solo",
+  "max_shortfall": 0.0358762275862069
  },
  "typed_rules_vs_oracle": {
   "A|urgent": {
