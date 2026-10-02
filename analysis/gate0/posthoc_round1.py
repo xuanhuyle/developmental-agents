@@ -19,6 +19,7 @@ from pathlib import Path
 import devagents.gate0.evaluate as ev
 from devagents.config import ROOT
 from devagents.gate0.audit import Audit, sha256_lf
+from devagents.gate0.plans import library
 from devagents.gate0.power import control_worlds, feasibility, followup_inputs
 from devagents.gate0.run import base_constants, load_json, validate_candidates
 
@@ -27,7 +28,9 @@ OUT = Path(__file__).with_suffix(".json")
 URGENT = ["A1|urgent", "A2|urgent", "A3|urgent", "B1|urgent", "B2|urgent", "B3|urgent"]
 
 
-def load_records() -> dict:
+def load_records(instances, conds, regimes, k_max) -> dict:
+    """The logged records, re-inserted in the order the evaluation produced them (measure()'s library order), so that
+    max() breaks exact ties as the frozen analysis did."""
     done = Audit().rounds()[1]["completed"][-1]
     if sha256_lf(EVAL / "records.json") != done["records_sha"]:
         raise SystemExit("records.json does not match the audit")
@@ -39,7 +42,17 @@ def load_records() -> dict:
         r["root_brief"] = ""  # not in the compact records; G1's brief comparison cannot be re-checked from them
         r["elapsed_s"] = float(r["elapsed_s"])
         recs[(r["instance"], r["regime"], r["member"], r["plan"], r["cond"])] = r
-    return recs
+    ordered = {}
+    for inst in instances:
+        for member in inst.members:
+            for plan in library(inst, member, k_max):
+                for cname, _, _ in conds:
+                    for regime in regimes:
+                        key = (inst.id, regime, member.key, plan.name, cname)
+                        ordered[key] = recs.pop(key)
+    if recs:
+        raise SystemExit(f"{len(recs)} records are not in the plan library")
+    return ordered
 
 
 def qualifying_under(views, grid, delta, cells, use_rt=True, use_w=True) -> dict:
@@ -70,9 +83,9 @@ def main() -> dict:
     frozen = load_json(EVAL / "results.json")
     if digests != frozen["instances"]:
         raise SystemExit("the worlds differ from the evaluated ones")
-    recs = load_records()
     k_max = constants.compute.max_concurrency - 1
     conds, base_cond = ev.conditions(acc, constants)
+    recs = load_records(instances, conds, list(constants.regimes), k_max)
     delta = acc["delta"]
     out: dict = {"source": {"results_sha": sha256_lf(EVAL / "results.json"),
                             "records_sha": sha256_lf(EVAL / "records.json")}}
@@ -83,7 +96,8 @@ def main() -> dict:
     same_cells = all(abs(re["cells"][k]["min_adv_rt"] - frozen["cells"][k]["min_adv_rt"]) < 1e-12
                      and abs(re["cells"][k]["min_adv_w"] - frozen["cells"][k]["min_adv_w"]) < 1e-12
                      for k in re["cells"])
-    out["reproduction"] = {"criteria_equal": same, "cells_equal": same_cells,
+    same_tables = re["base"] == frozen["base"] or json.loads(json.dumps(_finite(re["base"]))) == frozen["base"]
+    out["reproduction"] = {"criteria_equal": same, "cells_equal": same_cells, "base_table_equal": same_tables,
                            "note": "G1's root-brief comparison is not in records.json; t0_state, pre-reveal logs and "
                                    "reveal times are"}
 
@@ -123,6 +137,27 @@ def main() -> dict:
         "router only": count(qualifying_under(views, grid, delta, cells, use_w=False)),
         "W* only": count(qualifying_under(views, grid, delta, cells, use_rt=False)),
     }
+    out["g3_g4_counterfactual"]["router only, at delta/2"] = count(
+        qualifying_under(views, grid, delta / 2, cells, use_w=False))
+
+    # a typed rule for A|urgent with ONE fixed divided shape over the whole grid (not refitted per grid point)
+    fixed = {}
+    for pipe in views[base_cond].pipes:
+        if not ev.triage_first(pipe) or pipe == "W:solo":
+            continue
+        worst = 0.0
+        for g in grid:
+            v = views[g]
+            for k in URGENT[:3]:
+                cell = tuple(k.split("|"))
+                ms = v.members(cell)
+                rule = {m: (pipe if v.feats[(*cell, m)]["needed_read_s"] >= 126.8 else "W:solo") for m in ms}
+                worst = max(worst, v.cell(cell)["astar"] - statistics.fmean(v.val[(rule[m], (*cell, m))] for m in ms))
+        fixed[f"needed_read_s>=126.8 ? {pipe} : W:solo"] = worst
+    best_fixed = min(fixed, key=fixed.get)
+    out["typed_rule_A_urgent_fixed_shape"] = {"best_rule": best_fixed, "max_shortfall": fixed[best_fixed],
+                                              "all": dict(sorted(fixed.items(), key=lambda kv: kv[1])[:8])}
+
     for label, t0, post in (("W* without t0 features (post-reveal rules and single pipelines)", (), ev.POST_FEATURES),
                             ("W* as a single pipeline per regime (no rule)", (), ())):
         vs = views_with(t0, post)
@@ -154,16 +189,30 @@ def main() -> dict:
 
     # (4) the frozen follow-up model on the urgent template cells, as if they had qualified
     cost = acc["power"]["cost"]
+    def rt_only(view, c):
+        """The router as the baseline: its value, labels, checkpoints and costs (from its own logged runs)."""
+        cell = tuple(c.key.split("|"))
+        plan = view.cell(cell)["rt_plan"]
+
+        def price(m):
+            x = recs[(cell[0], cell[1], m, plan, view.cond)]
+            return {"calls": x["llm_calls"], "in_tokens": x["in_tokens"], "out_tokens": x["out_tokens"],
+                    "api_usd": (x["in_tokens"] * constants.compute.price_in
+                                + x["out_tokens"] * constants.compute.price_out) / 1e6}
+        return replace(c, b=c.r, b_label=c.r_label, checkpoints={**c.checkpoints, "b": c.checkpoints["r"]},
+                       costs={**c.costs, "B": {m: price(m) for m in c.a}})
+
     fu = followup_inputs(recs, base, URGENT, constants, cost)
     per_grid = {g: {c.key: c for c in followup_inputs(recs, v, URGENT, constants, cost)} for g, v in views.items()}
     grid_min = [min((per_grid[g][c.key] for g in per_grid), key=lambda x: sum(x.a[m] - x.b[m] for m in x.a))
                 for c in fu]
+    grid_min_rt = [min((rt_only(views[g], per_grid[g][c.key]) for g in per_grid),
+                       key=lambda x: sum(x.a[m] - x.b[m] for m in x.a)) for c in fu]
     valid, rejected = control_worlds(base, URGENT, delta)
     spec = acc["power"]
     out["followup_if_urgent_cells_qualified"] = {"control_worlds": valid, "control_worlds_rejected": rejected}
     for label, cs, gm in (("baseline = better of Rt and W* (frozen)", fu, grid_min),
-                          ("baseline = Rt only", [replace(c, b=c.r, b_label=c.r_label) for c in fu],
-                           [replace(c, b=c.r, b_label=c.r_label) for c in grid_min])):
+                          ("baseline = Rt only", [rt_only(base, c) for c in fu], grid_min_rt)):
         f = feasibility(cs, len(valid), spec, constants, gm)
         out["followup_if_urgent_cells_qualified"][label] = f
     return out
