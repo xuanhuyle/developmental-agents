@@ -290,3 +290,35 @@ non-provisional freeze. No `developmental` or `router` LLM output exists, and no
 
     Stage 1 `single` (0.3552) equals Experiment 0b's B-urgent `single` mean.
   - Not yet recorded here: the sha256 of `results/exp0c/stage1/stage1_decision.json`, which is local.
+- 2026-10-02, **Gate 0 (offline scientific feasibility): FAIL.** Implemented as postmortem §8 specifies
+  (EXPERIMENT_0C_POSTMORTEM_AND_NEXT_DECISION.md, f848ab4), offline and LLM-free. **Zero API calls.** No 0b/0c
+  specification, policy, prompt or result changed. Spec `GATE_0_SPEC.md`, report `GATE_0_REPORT.md`.
+  - **Frozen before any candidate evaluation.**
+    - acceptance.json v3 (sha256 `80cbe516a5cb3e7bdbd51702764be0d33c273631504978293013f3f1ac391885`), spec and
+      round-1 candidates.
+    - Pinned by the audit's genesis entry (`data/gate0/audit.jsonl`, genesis hash `ec505a1a…`, commit 29a7dfd,
+      pinning 31718d2), after two adversarial reviews and a final pre-genesis check.
+  - **Round 1, evaluation 1** (the only evaluation; its start was published before it ran, beb48d6):
+    - **Mechanical decision FAIL** (c2f01fd).
+    - G1 integrity, G2 sanity and G7 dead-branch release pass.
+    - G3/G4 fail: no qualifying cell. G5 fails narrowly. G8 fails vacuously. G9 was not computed.
+    - Round 1 was closed as FAIL in the audit (b8702af). **No round 2 is registered** (report §7).
+  - **Readings** (report §4–§5; descriptive post-hoc analysis from the logged records,
+    `analysis/gate0/posthoc_round1.json`):
+    - **Adaptive value over the best t0 router is real but small:** 0.032–0.056 at the base point in the six urgent
+      cells, 0 in relaxed cells, and ≥ δ = 0.03 at every grid point only in A1 and A2 urgent.
+    - **A one-line rule per template reproduces the adaptive oracle** in every urgent cell at every grid point (within
+      0.0065 in A; exactly in B, where it is the unconditional pipeline `W:spec2+dissolve`). The one-line generic
+      workflow captures one template at every grid point. No advantage over a simple deterministic controller is
+      claimed.
+    - **The follow-up cannot be powered.** Treating all six urgent cells as qualified: deliberation power 0.000 (high-effort
+      checkpoints cost about 0.147 fitness each, 2–6 per run); presentation power 0.009 against the frozen baseline and
+      0.115 against the router alone.
+    - **Adversarial validation:** 41 agents found no implementation defect that changes a criterion. They re-derived
+      every gated value from `records.json` independently.
+  - **Consequence:** under postmortem §10 rule 2, Gate 0 failed, so **the program stops, with zero API calls.**
+    - Stage A is not authorized.
+    - The tripwire (rule 6) is unaffected.
+  - **Still not recorded:** the sha256 of `results/exp0c/stage1/stage1_decision.json`, which is local. Command, run
+    in the experimenter's checkout:
+    `py -c "from devagents.evals.exp0c import sha256_lf; print(sha256_lf('results/exp0c/stage1/stage1_decision.json'))"`

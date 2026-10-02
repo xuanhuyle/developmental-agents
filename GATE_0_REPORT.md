@@ -104,8 +104,8 @@ GATE_0_SPEC.md §5. In brief:
 | 29a7dfd | genesis entry `ec505a1a…`, pinning commit 31718d2: acceptance `80cbe516…`, spec `6edbf7f2…`, candidates `5ae31282…`, the 7 world digests, CPython 3.11, the remote and branch |
 | beb48d6 | `evaluation_started`, published before anything was simulated |
 | c2f01fd | `evaluation_progress` (G1–G8 decision FAIL) and `evaluation_completed` (FAIL); `results.json` `ef973f6b…`, `records.json` `6c2d53d1…` |
-| da2e9fc, 91509ea, bb73586, POSTHOC_COMMIT | post-hoc analysis from the logged records (descriptive) |
-| DECIDE_COMMIT | `decision` entry: round 1 closed as FAIL |
+| da2e9fc, 91509ea, bb73586, a28947a | post-hoc analysis from the logged records (descriptive) |
+| b8702af | `decision` entry `908d0b48…`: round 1 closed as FAIL |
 
 `python -m devagents.gate0 verify` checks the chain, the pinned hashes, the result and record hashes, the audit's
 append-only git history, and that every anchored entry's commit is in HEAD's history.
@@ -392,7 +392,7 @@ pass:
   - Typed one-line rules capture both templates.
   - A round-2 set could escape only by being designed against that bound. A PASS obtained that way would still carry
     the disclosure that a simple typed rule reproduces A\*.
-- **The time box was not the reason.** The work took under 12 hours of wall-clock time from the postmortem commit,
+- **The time box was not the reason.** The work took about 13 hours of wall-clock time from the postmortem commit,
   within the brief's two-day time box.
 
 **What this authorizes.** FAIL closes this formulation under postmortem §10, rule 2: "Gate 0 fails → the program stops,
