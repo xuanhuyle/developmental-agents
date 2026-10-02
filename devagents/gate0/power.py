@@ -78,12 +78,13 @@ def _axis_label(sig, sx, sy) -> int:
 
 
 def checkpoint_eta(regime, constants, spec_cost: dict, out_tokens: int | None = None) -> float:
-    """Fitness cost of one high-effort checkpoint (its own tokens), priced by the runtime's money and latency model."""
+    """Fitness cost of one high-effort checkpoint, a separate call priced by the runtime's own step model (money and
+    latency, the per-call base latency included)."""
     c = constants.compute
     out_t = spec_cost["checkpoint_output_tokens"] if out_tokens is None else out_tokens
     in_t = spec_cost["checkpoint_input_tokens"]
-    money = (out_t * c.price_out + in_t * c.price_in) / 1e6
-    secs = out_t * c.latency_out_s + in_t * c.latency_in_s
+    money = c.step_cost(in_t, out_t) / 1e6
+    secs = c.step_latency(in_t, out_t)
     return (money + regime.value_of_time * secs) / regime.task_value
 
 
@@ -249,8 +250,8 @@ def total_runs(n_cells: int, n_control_worlds: int, alloc: dict) -> int:
 def choose_allocation(cells: list[CellInput], n_ctl_worlds: int, spec: dict,
                       variant: str = "presentation") -> tuple[dict, list[dict]]:
     """The pre-declared search over the grid in acceptance.json: every allocation within the run ceiling is scored by
-    a Monte Carlo with the search seed. Among allocations whose search power reaches min_power, the one with the most
-    control replication, then the fewest runs, wins; if none does, the highest power wins (then the fewest runs)."""
+    a Monte Carlo with the search seed, and the highest search power wins (ties: the fewest runs). G9 is then judged
+    on a fresh final estimate at that allocation."""
     a, s = spec["primary"], spec["search"]
     tried = []
     for r_m in s["R_M"]:
@@ -265,9 +266,7 @@ def choose_allocation(cells: list[CellInput], n_ctl_worlds: int, spec: dict,
                     tried.append({**alloc, "runs": n, "power": p["all"], "mc_se": p["mc_se"]})
     if not tried:
         return {}, tried
-    enough = [t for t in tried if t["power"] >= spec["min_power"]]
-    best = (max(enough, key=lambda t: (t["R_S"], -t["runs"], t["power"])) if enough
-            else max(tried, key=lambda t: (t["power"], -t["runs"])))
+    best = max(tried, key=lambda t: (t["power"], -t["runs"]))
     return {k: best[k] for k in ("R_M", "R_B", "R_N", "R_ABL", "R_A", "R_S")}, tried
 
 

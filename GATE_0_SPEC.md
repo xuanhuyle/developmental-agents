@@ -55,7 +55,8 @@ All classes use the same information access (any agent may read any source), the
 execution semantics and cost accounting (the runtime), and the same resource limits. They differ only in **when an
 organizational decision is fixed, and on what it may depend.**
 
-1. **Fixed topology at t0 (F).** One plan applied to every world. It is reported, not gated: the router dominates
+1. **Fixed topology at t0 (F).** One plan applied to every world. It is not gated, and not computed separately; it can
+   be read from the per-plan fitness tables in `results.json`. The router dominates
    it.
 2. **One-shot router (Rt).** Per cell, the best plan *of the plan library* whose organizational structure is fixed at
    t0, chosen to maximize the expected fitness over the reveal set: the Bayes-optimal t0 router over the library, with
@@ -186,14 +187,20 @@ genesis.
 
 **Template A, "workload reveal".** It models a cheap investigation that reveals how much downstream work exists.
 - A cheap SQL triage selects which of 14–16 candidate documents must be read.
-- In member X the selected documents are the long ones (360–420 tokens). In member Y they are the tiny ones (35–40
-  tokens). The count and the catalog are the same.
+- In member X the selected documents are the long ones. In member Y they are the tiny ones. The count and the
+  catalog are the same.
+- **Sizes as built.** The candidate file gives padding targets (long 360–420 tokens, tiny 36–40), which the builders
+  reach in whole sentences. The worlds pinned at genesis measure:
+  - long documents: A1 366–377, A2 381–397 and A3 421–432 tokens;
+  - tiny documents: A1 54–58, A2 39 and A3 40–41 tokens.
 - After the reveal, division pays in X and is wasteful in Y.
 - Instances A1–A3 cover three domains.
 
 **Template B, "dead-branch reveal".** It models a slow memo that reveals whether a long workstream is needed.
-- A slow memo (950–1150 tokens, about 100–120 s to read) reveals whether the heaviest work unit (1350–1500 tokens) is
-  still needed.
+- A slow memo reveals whether the heaviest work unit is still needed. As built:
+  - the memo is 956–1166 tokens, about 100–120 s to read;
+  - the heavy unit is 1363–1511 tokens;
+  - the light units are 266–392 tokens.
 - In X the memo discontinues the heavy unit. In Y it names a legacy entity: it is listed in the structured source,
   has no report, and its name is as long as the heavy unit's.
 - Starting the heavy unit at t0 pays in Y. In X, the oracle releases it while it is still running.
@@ -220,7 +227,7 @@ It is the stage-A dissociation state, calibrated here only, and never a follow-u
   reproduce one template's value exactly: a t0 split routes B worlds to `W:spec<k>+dissolve`, or a post-reveal rule
   captures A. Its other template may still qualify, but G4 needs two. G4 can pass only through instance-level
   mismatches (for example in k) of at least δ at every grid point.
-- **G9's deliberation variant is expected to fail.** One high-effort checkpoint costs about 0.145 fitness (urgent) or
+- **G9's deliberation variant is expected to fail.** One high-effort checkpoint costs about 0.147 fitness (urgent) or
   0.085 (relaxed), and a run has at least two. The expected effects are about 0.05.
 - **Round 1 is run anyway.** It is offline and cheap, it tests these expectations, and it produces the absolute
   numbers that Step 4 of the brief requires. The criteria are not adjusted to avoid the expected FAIL, and no
@@ -247,7 +254,7 @@ base tokens:
 | **G7 dead-branch release** | In at least 1 cell, at every grid point, A\*'s policy releases a still-running child in at least one member, and that is worth ≥ δ over the best plan of the same prefix group that releases nothing. |
 | **G8 robustness** | Under each perturbation, the G4 counts still hold among the G3-qualifying cells, with both advantages ≥ δ/2 and A\* still diverging. |
 | **G9 follow-up power** | The pre-declared follow-up (§7) fits in ≤ 400 runs and reaches joint power ≥ 0.80 under the primary assumptions for **both** mechanisms, each at its own best allocation: deliberation (high-effort checkpoints, as postmortem §8 requires), and presentation. |
-| **G10 audit** | The hash chain is intact; the acceptance, spec and candidate hashes, the world digests and the code (§6) match genesis. There are ≤ 2 rounds, and every evaluation is published before it runs. It is enforced by `begin_evaluation` and `confirm_start`; a violation aborts the evaluation. |
+| **G10 audit** | The hash chain is intact; the acceptance, spec and candidate hashes, the world digests and the code (§6) match genesis. There are ≤ 2 rounds, and every evaluation is published before it runs. It is enforced by `begin_evaluation` and `confirm_start`: a violation refuses the command before anything is simulated, nothing is recorded, and a pending start stays pending until the violation is undone. |
 
 **Mandatory disclosures (not gates).**
 - **D1/D5:** for each template and regime, the best typed one-line rule, its expected shortfall in every qualifying
@@ -312,21 +319,28 @@ base tokens:
 **An evaluation is published before it runs.**
 1. The first `calibrate --round N` checks everything and appends `evaluation_started`. It simulates nothing.
 2. The operator commits and pushes the audit.
-3. The second `calibrate --round N` requires the published start to be the audit's last entry, with nothing but the
-   audit changed since it was written and the same interpreter. Only then does it simulate.
+3. The second `calibrate --round N` checks three things:
+   - the published start is the audit's last entry, apart from that evaluation's own progress entries (for example
+     after a killed run);
+   - nothing but the audit changed since the start was written;
+   - the interpreter is the same.
+
+   Only then does it simulate.
 
 Further rules:
 - **The pre-power decision.** Before the long power step, the decision on G1–G8 is appended as
   `evaluation_progress`. No outcome-bearing output is printed before the completion is logged.
-- **Aborts.** An abort is recorded as a completion: FAIL if G1–G8 had already failed, INDETERMINATE otherwise.
+- **Aborts.** An interruption after `confirm_start` is recorded as a completion. It is FAIL if G1 passed and a G2–G8
+  FAIL had already been logged, and INDETERMINATE otherwise.
 - **Outputs.** An existing output directory is refused.
 
 **Rounds.**
 - **A round** is one candidate set. Round 1 must be the file and the worlds pinned at genesis.
 - **At most 2 rounds.** Round 2 may be registered only after round 1 ends in FAIL. It may change only its candidate
   file, the world builders and the tests.
-- **A completed PASS or FAIL stands.** A round is re-evaluated only after an INDETERMINATE completion (a G1 failure or
-  an abort), and only after a `defect` entry. A defect found after a PASS or FAIL goes to the next round.
+- **A completed PASS or FAIL stands.** A round is re-evaluated only after an INDETERMINATE completion, and only after
+  a `defect` entry. An INDETERMINATE completion is a G1 failure, or an abort before any G2–G8 FAIL was logged.
+- **Defects found later.** A defect found after a FAIL can be addressed only in round 2. Nothing follows a PASS.
 - **What a `defect` requires.** The fix is in HEAD, descends from the evaluated commit, and changes no pinned file. If
   it changes code, it adds a regression test, named exactly, that did not exist at the evaluated commit. A re-run
   without a code change is allowed only after an abort.
@@ -487,38 +501,45 @@ Justification:
 
 **Mechanisms.** G9 gates both, each at its own best allocation:
 - **The deliberation mechanism.** It is the follow-up of any high-effort arm, including stage A's only arm.
-  - **Cost per checkpoint:** 2,000 output and 4,000 input tokens, priced by the runtime's own money and latency model.
-    That is about 0.145 fitness urgent and 0.085 relaxed.
+  - **Cost per checkpoint:** 2,000 output and 4,000 input tokens. It is priced as a separate call by the runtime's
+    own step model, whose latency includes the per-call base. That is about 0.147 fitness urgent and 0.085 relaxed.
   - **Reported alongside:** power at 250, 500, 1,000, 2,000 and 4,000 output tokens per checkpoint. At 250 tokens a
-    checkpoint still costs about 0.04 urgent, because of its input.
+    checkpoint still costs about 0.04 urgent, because of its input and base latency.
 - **The presentation mechanism.** It is the follow-up if stage B selects (factual, low).
 
 **Allocation and Monte Carlo.**
 - A fixed search over R_M, R_B = R_N, R_ABL and R_S, within 400 runs, done separately for each mechanism.
 - The search seed differs from the final seed.
-- Among allocations whose search power reaches 0.80, the search prefers more control replication, then fewer runs.
-  If none reaches 0.80, it takes the highest power.
+- The allocation with the highest search power is chosen; ties go to fewer runs. G9 is judged on a fresh final
+  estimate at that allocation.
 - The final estimate uses 4,000 simulations.
 
-**Reported alongside the power:**
+**Reported alongside the power.**
+
+*For both mechanisms:*
+- a joint pessimistic scenario (below);
+- each pessimistic value alone, and the minimum effect over the grid;
+- API calls (checkpoints included), list-price spend and sequential wall time.
+
+*For the presentation mechanism only* (the deliberation mechanism adds the checkpoint-token rows above):
 - one-at-a-time sensitivity in π, σ, p_fail (B and N), p_fail_M (M and ABL), both together, ρ, s, τ_sim, η, s_ctl and
   q_default;
 - a π × σ grid, and the power when every effect is scaled by 0.5 to 3;
-- **a joint pessimistic scenario,** with every one of these at once: s = 3, p_fail = p_fail_M = 0.12, σ = 0.08,
-  η = 0.02, q_default = 1, and effects × 0.8;
-- each pessimistic value alone, and the minimum effect over the grid;
-- size under the null;
-- API calls (checkpoints included), list-price spend and sequential wall time for both mechanisms.
+- size under the null.
+
+**The joint pessimistic scenario** takes every one of these at once: s = 3, p_fail = p_fail_M = 0.12, σ = 0.08,
+η = 0.02, q_default = 1, and effects × 0.8.
 
 **What the power is not.** It is conditional on declared assumptions, never empirically established.
 
 ## 8. Decision
 
-- **INDETERMINATE** if G1 fails or the evaluation cannot complete. The report then states what remains unresolved and
-  what resolving it would cost.
+- **INDETERMINATE** if G1 fails, or if the evaluation cannot complete before a G2–G8 FAIL is logged. An abort after
+  a logged G2–G8 FAIL (with G1 passing) is a FAIL, because G9 cannot rescue it. The report then states what remains
+  unresolved and what resolving it would cost.
   - It can be resolved only by a re-evaluation after a logged defect (§6).
-  - A round closed as INDETERMINATE means Gate 0 has not passed. No API call is authorized, and under postmortem §10
-    the program stops unless a later round passes.
+  - A round closed as INDETERMINATE means Gate 0 has not passed. No later round can be registered, no API call is
+    authorized, and under postmortem §10 the program stops.
 - **PASS** if every gated criterion holds.
 - **FAIL** otherwise.
 

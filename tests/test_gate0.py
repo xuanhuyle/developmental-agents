@@ -596,13 +596,12 @@ def test_the_ablation_arm_never_adapts():
     assert power(cells, alloc, a, 100, 4, "presentation", 16)["F5"] > 0.95  # ABL falls back to the router's plan
 
 
-def test_allocation_prefers_controls_only_among_powered_allocations():
+def test_allocation_is_the_highest_search_power():
     spec = copy.deepcopy(ACC["power"])
     spec["search"] = {"R_M": [6, 20], "R_B": [4], "R_ABL": [2], "R_S": [2, 4], "n_sim": 100}
     alloc, tried = choose_allocation(_cells(0.05), 4, spec)
-    best = max(t["power"] for t in tried)
     chosen = next(t for t in tried if all(t[k] == alloc[k] for k in alloc))
-    assert chosen["power"] >= spec["min_power"] or chosen["power"] == best
+    assert chosen["power"] == max(t["power"] for t in tried)
 
 
 def test_total_runs_counts_every_arm():

@@ -132,13 +132,14 @@
       "wall_s_per_call": 8,
       "checkpoint_wall_s": 40
     },
-    "gated_variant": "both, each at its own best allocation: deliberation (one high-effort checkpoint per general event of the plan run: t0, the reveal, each child's termination; postmortem section 8 requires high-effort checkpoints in calls per run) and presentation (the other follow-up stage B can select)"
+    "gated_variant": "both, each at its own best allocation: deliberation (one high-effort checkpoint per general event of the plan run: t0, the reveal, each child's termination; postmortem section 8 requires high-effort checkpoints in calls per run) and presentation (the other follow-up stage B can select)",
+    "allocation_rule": "per mechanism, the allocation with the highest search power (ties: fewer runs); G9 uses a fresh final estimate at that allocation"
   },
   "rounds": {
     "max": 2,
     "max_reevaluations": 2
   },
-  "decision": "INDETERMINATE if G1 (integrity) fails or the evaluation cannot complete; otherwise PASS if every criterion G2-G5 and G7-G9 passes, else FAIL",
+  "decision": "INDETERMINATE if G1 (integrity) fails, or if the evaluation cannot complete before a G2-G8 FAIL is logged (evaluation_progress); an abort after a logged G2-G8 FAIL with G1 passing is FAIL; otherwise PASS if every criterion G2-G5 and G7-G9 passes, else FAIL",
   "comparators": {
     "router": "per cell, the best fixed-structure plan of the library in expectation over the reveal set",
     "generic_workflow": "per regime, the best of every W0 pipeline and every one-line rule (one feature of n_units, n_catalog_docs, cand_read_s, n_needed, needed_read_s, max_needed_s; one global midpoint threshold; post-reveal features choose only between triage-first pipelines) by mean fitness over every template world of that regime; a t0 feature may separate the templates, so a one-line rule may act as a per-template switch: it is not excluded, because excluding it would restrict the baseline's information (GATE_0_SPEC.md section 2.1)",
@@ -149,5 +150,5 @@
       "priors 0.25/0.75"
     ]
   },
-  "expectation_not_a_criterion": "recorded before any candidate evaluation: each template's oracle policy is a one-line contingent rule (A: fan out iff the revealed reading is long and time is urgent; B: speculate and release the units the memo rules out, which is the W0 pipeline W:spec<k>+dissolve), so W* can reproduce one template's value exactly and G3/G4 is expected to FAIL by construction; G9's deliberation variant is expected to fail because one high-effort checkpoint costs about 0.145 fitness (urgent) against effects of about 0.05"
+  "expectation_not_a_criterion": "recorded before any candidate evaluation: each template's oracle policy is a one-line contingent rule (A: fan out iff the revealed reading is long and time is urgent; B: speculate and release the units the memo rules out, which is the W0 pipeline W:spec<k>+dissolve), so W* can reproduce one template's value exactly and G3/G4 is expected to FAIL by construction; G9's deliberation variant is expected to fail because one high-effort checkpoint costs about 0.147 fitness (urgent) against effects of about 0.05"
 }
