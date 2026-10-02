@@ -1,13 +1,16 @@
 # Gate 0: offline scientific feasibility (specification)
 
 **Status.** Frozen before any candidate world was simulated. The machine-readable criteria are
-`data/gate0/acceptance.json` (version 2). The genesis entry of the append-only audit `data/gate0/audit.jsonl` pins the
-LF-normalized SHA-256 of that file, of this document and of the round-1 candidate file, together with the git tree
-hashes of the code that defines the classes and criteria. It is written before the first calibration evaluation, on a
-clean, pushed commit. If this document and acceptance.json disagree, acceptance.json governs.
+`data/gate0/acceptance.json` (version 3). The genesis entry of the append-only audit `data/gate0/audit.jsonl` pins:
+- the LF-normalized SHA-256 of that file, of this document and of the round-1 candidate file;
+- the round-1 world digests and the interpreter (CPython major.minor);
+- the genesis commit, the remote and the branch. From then on, the code that runs is pinned as a whole (§6).
+
+It is written before the first calibration evaluation, on a clean, pushed commit. If this document and acceptance.json
+disagree, acceptance.json governs.
 
 **Scope.**
-- Gate 0 only, as specified in EXPERIMENT_0C_POSTMORTEM_AND_NEXT_DECISION.md §8 and §10, with the deviation declared
+- Gate 0 only, as specified in EXPERIMENT_0C_POSTMORTEM_AND_NEXT_DECISION.md §8 and §10, with the deviations declared
   in §6.
 - It makes zero API calls and runs no LLM, and it implements neither stage A nor stage B.
 - It does not change frozen 0b/0c specifications, policies, prompts or results. `devagents/__main__.py`, which 0c's
@@ -74,8 +77,14 @@ organizational decision is fixed, and on what it may depend.**
      pipelines, which share their pre-reveal actions.
 
    Because W\* is chosen per regime, it may also branch on the stated value of time. W\* is thus the strongest
-   *generic* precommitted policy with one decision line, and the class contains the obvious size-contingent and
+   precommitted policy with one decision line, and the class contains the obvious size-contingent and
    urgency-contingent map-reduce rules.
+
+   **W\* is generic in name only when a t0 feature separates the templates.** In the round-1 set every t0 feature
+   does: there are 14–16 candidate units in A against 2–3 in B, and the listed reading times differ in the same way
+   (they even differ per instance). One line can therefore act as a per-template switch, and W\* may be a typed
+   workflow in effect. This is not excluded. Excluding it would mean forbidding a precommitted policy to read t0
+   information that every class sees, which is exactly the restriction of the baseline that §2.1 rules out.
 4. **Adaptive oracle (A\*).** The best *non-anticipating* policy over the plan library.
    - Plans are grouped by their common pre-reveal prefix. The group with the highest expected value is chosen, then
      each member gets that group's best continuation.
@@ -100,8 +109,15 @@ a controller.
 
 **What the gated comparison asks.** It asks two things:
 - Does the value require *conditioning the organization on the reveal*? Rt is typed per task but cannot do this.
-- Does it require *recognizing which kind of situation one is in*? W\* conditions on the reveal and the regime but is
-  one workflow for every task.
+- Does it require *more than one precommitted decision line*? W\* conditions on the reveal, the regime and any t0
+  feature, but with a single line.
+
+**Why the bound sits at one line, and what that implies.** In a fully specified environment, the oracle's policy is
+always some deterministic contingent rule. Whether a precommitted workflow matches it is a question of how many
+decision lines the workflow class allows. One line is the bound the brief's "fixed generic workflow reacting via a
+precommitted rule" names. It is a modelling choice, not a law. With two templates whose oracle policies are each one
+line (§4), a two-line workflow would reproduce A\* everywhere. That is the expected negative: it is not a defect of the
+candidates.
 
 **What a positive result would establish, and what it would not.**
 - **It would establish** that a system given only general mechanisms autonomously produced economically appropriate,
@@ -112,6 +128,12 @@ a controller.
   *autonomy*: doing as well without that specification.
 - **The disclosures D1 and D5 report how simple that typed workflow is.** If a typed one-line rule reproduces A\*, the
   report says so, and no claim beyond autonomous adaptation is licensed.
+- **Because W\* may itself be typed (§2, item 3), the gated and disclosed classes can coincide.** When they do, the
+  report says so.
+
+**Scope of the adaptation tested.** Each template has exactly one reorganization point, and it coincides with one
+information arrival (the reveal). No live child is redirected or reassigned, and no second change happens. A positive
+result would cover one-step, information-triggered reorganization only.
 
 **The postmortem's §6.0 test 7.** That test says "the LLM beats a no-LLM controller running the mechanism's own rule".
 It is meaningful only if that controller is the mechanism's scaffolding with a fixed default decision. If the
@@ -141,7 +163,12 @@ size-balanced shares: largest first, on the catalog's token counts, which are id
 
 **Waiting and releasing.** `wait` waits for every child. `dissolve` waits only for children that hold a needed unit,
 and `cancel` also sends a STOP message to children that hold only dead units. All three send WAIT only while a child
-they wait for has not reported, so they differ only in whom they wait for.
+they wait for has not reported.
+- **One further difference.** When `dissolve` or `cancel` waits for a strict subset of its children, it uses WAIT
+  `any`, while `wait` uses WAIT `all`. So the root pays one extra priced step for each needed report that arrives
+  separately. This understates the value of release, which is the conservative direction.
+- **The signature does not count root reading.** `triage>fan<k>` and `triage>self+<k>` therefore have the same
+  signature, and the F1 labels treat them alike. This is also conservative.
 
 **No new lifecycle primitive.**
 - **How work is released.** A released child is terminated by the runtime when the root answers, and its in-flight
@@ -184,11 +211,20 @@ It is the stage-A dissociation state, calibrated here only, and never a follow-u
 **Analytic expectation, recorded before evaluation (not a criterion).**
 - The oracle's advantage over the best t0 commitment was estimated at about 0.04–0.06 for both templates.
   Non-anticipation halves the value of adapting, and each child costs about 0.045 fitness (about 28 s of urgent time).
-- After the pre-genesis review, a further expectation was recorded: each template's oracle policy is a one-line
-  contingent rule (A: urgent and long revealed reading → fan out; B: urgent → speculate and release ruled-out units).
-  So the per-regime generic workflow may capture one template's value, and G4 (two templates) may fail.
-
-**A FAIL is a live outcome.**
+- **Each template's oracle policy is a one-line contingent rule.** This expectation was recorded after the first
+  pre-genesis review:
+  - **A:** fan out if and only if the revealed reading is long and time is urgent.
+  - **B:** speculate at t0, then release the units the memo rules out. That is the W0 pipeline `W:spec<k>+dissolve`,
+    since `wait` and `dissolve` coincide in the member where nothing is dead.
+- **G3/G4 is therefore expected to FAIL, by construction, recorded after the second pre-genesis review.** W\* can
+  reproduce one template's value exactly: a t0 split routes B worlds to `W:spec<k>+dissolve`, or a post-reveal rule
+  captures A. Its other template may still qualify, but G4 needs two. G4 can pass only through instance-level
+  mismatches (for example in k) of at least δ at every grid point.
+- **G9's deliberation variant is expected to fail.** One high-effort checkpoint costs about 0.145 fitness (urgent) or
+  0.085 (relaxed), and a run has at least two. The expected effects are about 0.05.
+- **Round 1 is run anyway.** It is offline and cheap, it tests these expectations, and it produces the absolute
+  numbers that Step 4 of the brief requires. The criteria are not adjusted to avoid the expected FAIL, and no
+  template is tuned to escape it.
 
 ## 5. Frozen acceptance criteria
 
@@ -210,8 +246,8 @@ base tokens:
 | **G6** | Withdrawn before genesis (see §6, amendment 3). |
 | **G7 dead-branch release** | In at least 1 cell, at every grid point, A\*'s policy releases a still-running child in at least one member, and that is worth ≥ δ over the best plan of the same prefix group that releases nothing. |
 | **G8 robustness** | Under each perturbation, the G4 counts still hold among the G3-qualifying cells, with both advantages ≥ δ/2 and A\* still diverging. |
-| **G9 follow-up power** | The pre-declared follow-up (§7), with the presentation mechanism, fits in ≤ 400 runs and reaches joint power ≥ 0.80 under the primary assumptions. |
-| **G10 audit** | The hash chain is intact, and the acceptance, spec, candidate and code hashes match genesis. There are ≤ 2 rounds, and every evaluation is logged. It is enforced by `begin_evaluation`; a violation aborts the evaluation. |
+| **G9 follow-up power** | The pre-declared follow-up (§7) fits in ≤ 400 runs and reaches joint power ≥ 0.80 under the primary assumptions for **both** mechanisms, each at its own best allocation: deliberation (high-effort checkpoints, as postmortem §8 requires), and presentation. |
+| **G10 audit** | The hash chain is intact; the acceptance, spec and candidate hashes, the world digests and the code (§6) match genesis. There are ≤ 2 rounds, and every evaluation is published before it runs. It is enforced by `begin_evaluation` and `confirm_start`; a violation aborts the evaluation. |
 
 **Mandatory disclosures (not gates).**
 - **D1/D5:** for each template and regime, the best typed one-line rule, its expected shortfall in every qualifying
@@ -232,9 +268,10 @@ base tokens:
   router that has privileged knowledge. The expected gap is the decision-theoretic value of adapting organization to
   the reveal.
 - **"The best fixed generic workflow".** It is **one workflow per regime for every template**, including every one-line
-  contingent rule. "Generic" means not specialized to the task. Choosing it with hindsight at each condition and
-  allowing a regime branch makes it as strong as the class allows. A per-task workflow (W_typed, typed rules) is
-  architecture specified by a human for that task type, so it is disclosed, not gated (§2.1).
+  contingent rule. Choosing it with hindsight at each condition and allowing a regime branch makes it as strong as the
+  class allows. A workflow fitted per task type (W_typed, typed rules) is disclosed, not gated (§2.1). The line between
+  the two is not enforceable here, because a t0 feature separates the templates (§2, item 3). It is left that way: the
+  alternative restricts the baseline's information.
 - **"At every grid point".** This means the 0b token grid, as in the postmortem. Environment constants are checked
   separately at δ/2.
 - **"At least two templates".** The requirement is two templates **with two qualifying cells each**.
@@ -248,47 +285,101 @@ base tokens:
 
 **The trail.**
 - **The audit file.** `data/gate0/audit.jsonl` is append-only and hash-chained (`devagents/gate0/audit.py`).
-- **Anchoring.** The chain detects edits but not truncation or deletion, so the official audit is anchored to git:
-  - genesis requires a clean tree whose HEAD is on the remote;
-  - every evaluation requires the audit file to equal its committed version at a pushed HEAD.
-
-  So every entry must be committed and pushed before the next evaluation.
+- **Anchoring.** The chain detects edits but not truncation or deletion, so the official audit is anchored to git and
+  to the remote branch pinned at genesis. Every write that matters (genesis, the start of an evaluation, a defect, a
+  decision) requires:
+  - a clean checkout: nothing modified, staged, untracked, ignored or hidden (skip-worktree, assume-unchanged), except
+    caches and old ignored result data;
+  - HEAD on the pinned remote branch, checked by a fetch, not by local refs;
+  - the audit file byte-equal to its copy at HEAD and on the remote;
+  - every committed version of the audit extending the previous one.
+- **Genesis** is refused if the audit file ever had a git history.
 - **What genesis pins:**
   - the hashes of acceptance.json, this document and candidates_round1.json;
-  - the git tree hashes of `devagents/`, `tests/`, `data/world`, `data/exp0b/frozen.json`, the acceptance and
-    candidate files, this document and `pyproject.toml`.
+  - the round-1 world digests;
+  - the interpreter;
+  - the genesis commit, remote and branch.
+- **The code is pinned as a whole.** After genesis, `git diff <genesis commit> HEAD` may touch only:
+  - the trail: the audit and each evaluation's `results.json` and `records.json`;
+  - GATE_0_REPORT.md and EXPERIMENT_STATUS.md;
+  - for round 2: its candidate file, `devagents/gate0/worlds.py` and `tests/test_gate0.py`;
+  - files changed by logged defects.
+
+  Pinned files never change: acceptance.json, this document, candidates_round1.json, pyproject.toml, the frozen 0b
+  constants and world, `devagents/config.py`, the runtime and `calibrate.py`. Before simulating, every module loaded
+  from the repository must be a tracked file, and none may shadow a standard-library name.
+
+**An evaluation is published before it runs.**
+1. The first `calibrate --round N` checks everything and appends `evaluation_started`. It simulates nothing.
+2. The operator commits and pushes the audit.
+3. The second `calibrate --round N` requires the published start to be the audit's last entry, with nothing but the
+   audit changed since it was written and the same interpreter. Only then does it simulate.
+
+Further rules:
+- **The pre-power decision.** Before the long power step, the decision on G1–G8 is appended as
+  `evaluation_progress`. No outcome-bearing output is printed before the completion is logged.
+- **Aborts.** An abort is recorded as a completion: FAIL if G1–G8 had already failed, INDETERMINATE otherwise.
+- **Outputs.** An existing output directory is refused.
 
 **Rounds.**
-- **A round** is one candidate set. Round 1 must be the file pinned at genesis, run on the code pinned at genesis.
-- **At most 2 rounds.** Round 2 may be registered only after round 1 ends in FAIL; its code trees are recorded when it
-  is registered.
-- **Re-evaluation.** A round is evaluated once. It may be re-evaluated only after a verified `defect` entry: an
-  existing commit that descends from the evaluated code and is in HEAD, plus a regression test that exists. The
-  re-evaluation must use the same candidate file and identical world digests; a change to the worlds is a new round.
-  At most 2 re-evaluations, and every evaluation stays in the log, each in its own directory
-  (`data/gate0/round<N>/eval<k>/`).
-- **Order and crashes.** `calibrate` validates its inputs, appends `evaluation_started` before any simulation, and
-  appends `evaluation_completed` with the results file's hash and the mechanical decision. A crash appends an
-  INDETERMINATE completion.
-- **Closing.** `decide` closes a round and must repeat its last mechanical decision. Thresholds are never changed
-  after any output.
-- **Commands.** Only `verify` may name another audit file.
+- **A round** is one candidate set. Round 1 must be the file and the worlds pinned at genesis.
+- **At most 2 rounds.** Round 2 may be registered only after round 1 ends in FAIL. It may change only its candidate
+  file, the world builders and the tests.
+- **A completed PASS or FAIL stands.** A round is re-evaluated only after an INDETERMINATE completion (a G1 failure or
+  an abort), and only after a `defect` entry. A defect found after a PASS or FAIL goes to the next round.
+- **What a `defect` requires.** The fix is in HEAD, descends from the evaluated commit, and changes no pinned file. If
+  it changes code, it adds a regression test, named exactly, that did not exist at the evaluated commit. A re-run
+  without a code change is allowed only after an abort.
+- **The limits of re-evaluation.** It uses the same candidate file and world digests; a change to the worlds is a new
+  round. There are at most 2 re-evaluations, each in its own directory (`data/gate0/round<N>/eval<k>/`).
+- **Closing.** `decide` closes a round and must repeat its last mechanical decision. Thresholds are never changed after
+  any output.
+- **Commands.** Only `verify` may name another audit file. `verify` also checks the record hashes, orphan output
+  directories, the audit's git history, and that every anchored entry's commit is in HEAD's history.
 
 **What cannot be enforced, and other disclosures.**
-- **Unlogged simulation is physically possible.** Python can call the runtime directly, so enforcement is procedural,
-  backed by the anchored chain and the git history.
+- **Unlogged simulation is physically possible.** Python can call the runtime directly, and git can be configured to
+  misreport (for example with `url.<x>.insteadOf`). Enforcement against deliberate circumvention is procedural, backed
+  by the published trail.
+- **Branch protection is not configured from here.** A force-push to the branch could rewrite the published history.
+  The trail's commits are reported with their SHAs, so a rewrite would be visible against them.
+- **A published start can be re-run before its completion is published.** For example, after a kill, the operator
+  can run it again. The code, worlds and interpreter are pinned, and the evaluation is deterministic (fixture results
+  were byte-identical under different hash seeds), so a re-run cannot change the outcome. An abandoned start stays
+  visible.
+- **No amendment path exists after genesis.** A bug found between genesis and the first evaluation cannot be fixed
+  without blocking round 1. The known-buggy code must be evaluated, and if G1 fails, the defect path follows.
+- **A re-evaluation after a G1 failure may change class-defining code.** By then the other criteria have been seen.
+  Every such change is recorded (its commit and its file list), and the report must list it.
+- **Round 2 and W\*.** W\* is fitted over every template world of a regime, so a round-2 candidate set can move W\*
+  and change whether unchanged cells qualify.
 - **What the commit history shows.**
   - The candidate file was committed and pushed (a264b17) before any simulation; the harness existed uncommitted at
     that moment.
-  - Before genesis, only fixture worlds were simulated: the instances in `tests/test_gate0.py` and the reviewers' own
-    small fixtures, whose parameters differ from every candidate. They were used to test code, not to choose
-    candidates.
+  - Before genesis, no candidate world was simulated. Fixture worlds were simulated: the instances in
+    `tests/test_gate0.py` and the reviewers' own small fixtures, whose parameters differ from every candidate. They
+    were used to test code, not to choose candidates.
+  - On 2026-10-01 at about 20:55 UTC, while D was being designed, one timing of 0b's T01 base world was run with the 0b
+    runtime (urgent fan-out, k = 1 to 6). T01 is 0b's world, not a candidate.
 - **A round 2, if any,** would be designed with knowledge of round 1's records and diagnosis. A round-2 PASS carries
   less evidential weight than a round-1 PASS.
-- **Declared deviation from postmortem §8.** §8 asked for the grid, δ and the criteria to be hashed before any
-  template was designed. Here acceptance.json and the round-1 templates were drafted in the same session and first
-  committed together (a264b17). The W0 library and the rule features were written with the templates in view. The
-  guarantee offered instead is that both were frozen before any candidate evaluation.
+
+**Declared deviations from the postmortem.**
+1. **Hashing order (§8).** §8 asked for the grid, δ and the criteria to be hashed before any template was designed.
+   Here acceptance.json and the round-1 templates were drafted in the same session and first committed together
+   (a264b17). The W0 library and the rule features were written with the templates in view. The guarantee offered
+   instead is that both were frozen before any candidate evaluation.
+2. **The follow-up design (§9) is approximated in five ways.** Each makes the follow-up look *more* feasible, so a G9
+   FAIL is robust to them and a G9 PASS would be optimistic:
+   - **Test 3 (non-predictability from surface features)** is not modelled and gets no runs.
+   - **Test 4 (specificity on cells whose surface suggests dividing)** is covered only inside F1. A spawn in an urgent
+     member where division does not pay lowers the adaptation contrast. There is no separate urgent spawn-rate
+     control; F3 uses relaxed twins.
+   - **Held-out cells.** All qualifying cells are used. The follow-up's pre-registration must keep mechanism
+     development off them.
+   - **Router and fixed workflow are merged.** They form one baseline B, per cell the better of Rt and W\* by
+     simulated value, instead of two arms. Two arms would cost more runs.
+   - **Inference.** It uses normal-theory bounds with within-cell variances, not a bootstrap.
 
 **Pre-genesis amendments** (all made before any candidate evaluation; none prompted by candidate output):
 1. **Control replication.** It is searched instead of being fixed at 2. A fixture test showed that a fixed R_S = 2
@@ -309,7 +400,21 @@ base tokens:
    - **G8 now also requires divergence,** and the document-latency perturbation scales both latency parts.
    - **The power analysis was rebuilt (§7).** It now has raw fitness, fixed-cell inference, a per-template contrast,
      an ablation arm, the 0b/0c default as M's failure mode, and priced deliberation.
-   - **The audit was hardened** (this section).
+   - **The audit was hardened.**
+4. **Prompted by a second adversarial review** (15 serious and 18 minor findings, all confirmed):
+   - **W\*'s typing and the expected G3/G4 FAIL** are stated (§2, §2.1, §4). Nothing was changed to avoid them.
+   - **G9 now gates both mechanisms.** Before, it gated presentation only: an undeclared deviation from postmortem §8,
+     which counts high-effort checkpoints in calls per run.
+   - **Checkpoints follow the §9 trigger definition:** t0, the reveal, and each child's termination, instead of a
+     fixed 2 per run.
+   - **Primary q_default is 1** (0.5 contradicted the 0/192 evidence cited for it).
+   - **The pessimistic set is joint,** with equal failure rates for both arms.
+   - **ABL falls back to the router's plan,** which is fixed at t0.
+   - **The allocation tie-break** applies only among powered allocations.
+   - **The deliberation cost estimate** counts the checkpoint calls.
+   - **Non-finite numbers are serialized distinctly.**
+   - **The audit was rebuilt** as described in this section.
+   - **The follow-up deviations above are declared.**
 
 ## 7. The follow-up and its power
 
@@ -327,7 +432,8 @@ The follow-up is designed now and pre-registered later. No run of it is authoriz
   per cell.
 - **N:** the no-LLM controller: the mechanism's scaffolding with a fixed default. It is modelled like B, which is
   conservative.
-- **ABL:** M with the revealed state hidden, for postmortem test 6.
+- **ABL:** M with the revealed state hidden, for postmortem test 6. When it does not take the default, it takes the
+  router's plan, which is fixed at t0.
 - **A:** the scripted oracle, 1 run per world, as an instrument check.
 - **M on controls.**
 
@@ -346,10 +452,14 @@ claimed. All of the following must pass:
   0b/0c default (triage, then read alone), and else to B's plan.
 - logit π_c = logit π + s·(√ρ·z_template + √(1−ρ)·z_cell).
 - Noise N(0, σ²) is added to every run.
-- M's runs also carry a cell bias N(0, τ_sim²) and an overhead η.
-- A wrong answer costs 1.0 (p_fail, and p_fail_M for M).
+- M's and ABL's runs also carry a cell bias N(0, τ_sim²) and an overhead η.
+- **For the deliberation mechanism,** each run also pays one priced high-effort checkpoint per general event of the plan
+  it ran: t0, the reveal, and each child's termination. That is 2 + (children) checkpoints.
+- A wrong answer costs 1.0. The rate is p_fail for B and N, and p_fail_M for M and ABL.
 - M spawns on a control world with probability s_ctl.
 - The effects are the base-point fitness of the plans, from calibration.
+- **Not modelled:** anti-oracle errors (dividing where the oracle would not, or releasing needed work). M's
+  non-oracle runs are therefore never worse than the default, which is the optimistic direction.
 
 **Primary assumptions.**
 
@@ -364,36 +474,41 @@ claimed. All of the following must pass:
 | τ_sim | 0.02 |
 | η | 0.01 |
 | s_ctl | 0.10 |
-| q_default | 0.5 |
+| q_default | 1.0 |
 
 Justification:
 - In 0c, the live B-urgent means of `single` and scripted `central` landed within 0.012 of their offline predictions,
   with no visible answer failures in 24 runs. With 0 failures in 24 runs, the 95% upper bound on the failure rate is
   about 0.12, which the pessimistic set uses.
 - π = 0.8 is the alternative of interest ("the mechanism mostly works"), not an estimate.
-- q_default = 0.5 reflects 0b/0c's observed default (0/192 spawns).
+- q_default = 1: a non-adapting M does the 0b/0c default. In 0b/0c the model took the default plan in 192 of 192
+  voluntary opportunities. Values 0.5 and 0 are sensitivity rows; they are optimistic, because B's plan is at least
+  as good as the default.
 
-**Mechanisms.**
-- **G9 gates the presentation mechanism.**
-- **The deliberation mechanism** is charged per run for 2 checkpoints, each with 2,000 output and 4,000 input tokens,
-  priced by the runtime's own money and latency model: about 0.24 fitness urgent and 0.12 relaxed. Its power is
-  reported.
-- **Pre-declared consequence:** if the deliberation variant's power is below 0.80, a deliberation-mechanism follow-up
-  is infeasible. Should stage B select a high-effort arm, there is no follow-up and the program stops.
+**Mechanisms.** G9 gates both, each at its own best allocation:
+- **The deliberation mechanism.** It is the follow-up of any high-effort arm, including stage A's only arm.
+  - **Cost per checkpoint:** 2,000 output and 4,000 input tokens, priced by the runtime's own money and latency model.
+    That is about 0.145 fitness urgent and 0.085 relaxed.
+  - **Reported alongside:** power at 250, 500, 1,000, 2,000 and 4,000 output tokens per checkpoint. At 250 tokens a
+    checkpoint still costs about 0.04 urgent, because of its input.
+- **The presentation mechanism.** It is the follow-up if stage B selects (factual, low).
 
 **Allocation and Monte Carlo.**
-- A fixed search over R_M, R_B = R_N, R_ABL and R_S, within 400 runs.
+- A fixed search over R_M, R_B = R_N, R_ABL and R_S, within 400 runs, done separately for each mechanism.
 - The search seed differs from the final seed.
-- On near-ties within one Monte Carlo standard error, the search prefers more control replication, then fewer runs.
+- Among allocations whose search power reaches 0.80, the search prefers more control replication, then fewer runs.
+  If none reaches 0.80, it takes the highest power.
 - The final estimate uses 4,000 simulations.
 
 **Reported alongside the power:**
-- one-at-a-time sensitivity in π, σ, p_fail, p_fail_M, ρ, s, τ_sim, η, s_ctl and q_default;
-- a π × σ grid;
-- a pessimistic set: s = 3, p_fail = 0.12, p_fail_M = 0.06, σ = 0.08, η = 0.02, q_default = 1, effects × 0.8, and the
-  minimum effect over the grid;
+- one-at-a-time sensitivity in π, σ, p_fail (B and N), p_fail_M (M and ABL), both together, ρ, s, τ_sim, η, s_ctl and
+  q_default;
+- a π × σ grid, and the power when every effect is scaled by 0.5 to 3;
+- **a joint pessimistic scenario,** with every one of these at once: s = 3, p_fail = p_fail_M = 0.12, σ = 0.08,
+  η = 0.02, q_default = 1, and effects × 0.8;
+- each pessimistic value alone, and the minimum effect over the grid;
 - size under the null;
-- API calls, list-price spend and sequential wall time for both mechanisms.
+- API calls (checkpoints included), list-price spend and sequential wall time for both mechanisms.
 
 **What the power is not.** It is conditional on declared assumptions, never empirically established.
 
@@ -401,6 +516,9 @@ Justification:
 
 - **INDETERMINATE** if G1 fails or the evaluation cannot complete. The report then states what remains unresolved and
   what resolving it would cost.
+  - It can be resolved only by a re-evaluation after a logged defect (§6).
+  - A round closed as INDETERMINATE means Gate 0 has not passed. No API call is authorized, and under postmortem §10
+    the program stops unless a later round passes.
 - **PASS** if every gated criterion holds.
 - **FAIL** otherwise.
 
@@ -413,11 +531,14 @@ criteria never change. A round-2 FAIL is final.
   fails → the program stops, with zero API calls").
 
 **How a FAIL is read.** The report must say which criterion failed and read each failure separately:
-- **G3/G4:** the adaptation's value is captured by a t0 commitment or by a generic one-line workflow. This is the
-  substantive negative.
+- **G3/G4:** the adaptation's value is captured by a t0 commitment or by a one-line precommitted workflow. This is the
+  substantive negative, and it was expected (§4). It says that a simple deterministic controller reproduces the adaptive
+  oracle here, so no advantage of developmental intelligence can be claimed on these cells. The report must also say
+  whether the capturing rule was a per-template switch.
 - **G2, G5 or G7:** a control or opportunity is missing in this candidate set.
 - **G8:** fragility.
-- **G9:** the follow-up is not powered.
+- **G9:** the follow-up is not powered. The report says for which mechanism. If only the deliberation variant fails,
+  the reading is that deliberating at every general event costs more than adapting is worth in this environment.
 
 A negative covers two templates, the concurrent-reading and release levers, and at most two rounds.
 
@@ -430,3 +551,7 @@ A negative covers two templates, the concurrent-reading and release levers, and 
 - **The prior.** The uniform prior over a reveal set is a modelling choice; priors 0.25 and 0.75 are disclosed.
 - **Plan coverage.** The plan library is finite.
 - **The power analysis** rests on the declared assumptions, uses normal-theory bounds, and treats the cells as fixed.
+  It approximates the §9 follow-up in the ways declared in §6, and it does not model anti-oracle errors.
+- **One change point.** Each template has one reorganization point, at the reveal (§2.1).
+- **The interpreter.** Results are reproducible bit for bit only under the pinned CPython major.minor. Sums differ in
+  the last bit from 3.12 on.

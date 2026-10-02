@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,12 +16,11 @@ from types import SimpleNamespace
 import pytest
 
 from devagents.evals.calibrate import Assumptions
-from devagents.gate0 import audit as audit_mod
-from devagents.gate0.audit import Audit, AuditError, sha256_lf
+from devagents.gate0.audit import Audit, AuditError, checkout_problems, sha256_lf
 from devagents.gate0.evaluate import (View, _dissolution, analyze, best_one_line, conditions, features, instantiate,
                                       measure, w0_library)
 from devagents.gate0.plans import Plan, Program, balanced, clean, library, parse_plan, run_plan
-from devagents.gate0.power import CellInput, power, total_runs
+from devagents.gate0.power import CellInput, choose_allocation, power, total_runs
 from devagents.gate0.run import _finite, base_constants, cli, evaluate_round, verify
 from devagents.gate0.worlds import G0Info, build_a, build_b, build_d, build_instances
 from devagents.runtime.resources import estimate_tokens
@@ -259,22 +259,29 @@ def _audit(tmp_path):
 
 
 def _begin(a, acc, spec, n, sha, digests=None):
-    return a.begin_evaluation(n, sha, acc, ACC, digests or {"FA": "d"}, spec_path=spec, require_clean=False)
+    return a.begin_evaluation(n, sha, acc, ACC, digests or {"FA": "d"}, spec_path=spec)
 
 
-def test_audit_chain_detects_edits(tmp_path):
-    a, *_ = _audit(tmp_path)
-    a.append("note", {"x": 1})
+def _complete(a, n, decision, **kw):
+    k = len(a.rounds()[n]["evaluations"])
+    return a.complete_evaluation(n, "r", {"decision": decision, "evaluation": k, **kw})
+
+
+def test_audit_chain_detects_edits_and_torn_lines(tmp_path):
+    a, acc, spec, cand = _audit(tmp_path)
+    _begin(a, acc, spec, 1, sha256_lf(cand))
     assert a.verify() == []
     lines = a.path.read_text().splitlines()
-    lines[1] = lines[1].replace('"x":1', '"x":2')
+    lines[1] = lines[1].replace('"round":1', '"round":2')
     a.path.write_text("\n".join(lines) + "\n")
     assert a.verify()
     with pytest.raises(AuditError):
-        a.append("note", {})
+        _complete(a, 1, "FAIL")
+    a.path.write_text("\n".join(lines[:1]) + "\n" + lines[1][:20])
+    assert a.verify() and "incomplete" in a.verify()[0]
 
 
-def test_round_guard(tmp_path):
+def test_round_guard_a_completed_fail_stands(tmp_path):
     a, acc, spec, cand = _audit(tmp_path)
     c1 = sha256_lf(cand)
     with pytest.raises(AuditError):
@@ -285,26 +292,43 @@ def test_round_guard(tmp_path):
         _begin(a, acc, spec, 1, "not-the-pinned-file")
     _begin(a, acc, spec, 1, c1)
     with pytest.raises(AuditError):
-        _begin(a, acc, spec, 1, c1)  # no defect logged
-    a.log_defect(1, "bug", "abc", "test_x", verify_git=False)
+        _begin(a, acc, spec, 1, c1)  # evaluation 1 is pending
     with pytest.raises(AuditError):
-        _begin(a, acc, spec, 1, c1, {"FA": "other world"})  # a world change is a new round
-    _begin(a, acc, spec, 1, c1)
-    a.log_defect(1, "bug2", "abd", "test_y", verify_git=False)
-    _begin(a, acc, spec, 1, c1)
-    a.log_defect(1, "bug3", "abe", "test_z", verify_git=False)
-    with pytest.raises(AuditError):  # max_reevaluations = 2
+        a.decide(1, "FAIL", "")  # pending
+    _complete(a, 1, "FAIL")
+    with pytest.raises(AuditError):
+        a.log_defect(1, "bug", "abc", "tests/test_gate0.py::test_x")  # a completed FAIL stands
+    with pytest.raises(AuditError):
         _begin(a, acc, spec, 1, c1)
-    with pytest.raises(AuditError):
-        a.decide(1, "FAIL", "")  # started evaluations without completions
-    for _ in range(3):
-        a.complete_evaluation(1, "r", {"decision": "FAIL"})
     with pytest.raises(AuditError):
         a.decide(1, "PASS", "")  # must repeat the mechanical decision
     a.decide(1, "FAIL", "")
     with pytest.raises(AuditError):
         _begin(a, acc, spec, 1, c1)  # closed
     _begin(a, acc, spec, 2, "c2")  # allowed after a FAIL
+
+
+def test_round_guard_reevaluation_only_after_indeterminate(tmp_path):
+    a, acc, spec, cand = _audit(tmp_path)
+    c1 = sha256_lf(cand)
+    _begin(a, acc, spec, 1, c1)
+    _complete(a, 1, "INDETERMINATE", aborted=True)
+    with pytest.raises(AuditError):
+        _begin(a, acc, spec, 1, c1)  # no defect logged
+    a.log_defect(1, "crash", "abc", "")
+    with pytest.raises(AuditError):
+        _begin(a, acc, spec, 1, c1, {"FA": "other world"})  # a world change is a new round
+    _begin(a, acc, spec, 1, c1)
+    _complete(a, 1, "INDETERMINATE")
+    a.log_defect(1, "bug", "abd", "tests/test_gate0.py::test_y")
+    _begin(a, acc, spec, 1, c1)
+    _complete(a, 1, "INDETERMINATE")
+    a.log_defect(1, "bug3", "abe", "tests/test_gate0.py::test_z")
+    with pytest.raises(AuditError):  # max_reevaluations = 2
+        _begin(a, acc, spec, 1, c1)
+    with pytest.raises(AuditError):
+        a.decide(1, "FAIL", "")
+    a.decide(1, "INDETERMINATE", "")
 
 
 def test_round_guard_refuses_changed_acceptance_or_spec(tmp_path):
@@ -318,17 +342,12 @@ def test_round_guard_refuses_changed_acceptance_or_spec(tmp_path):
         _begin(a, acc, spec, 1, sha256_lf(cand))
 
 
-def test_anchored_genesis_requires_a_clean_pushed_tree(tmp_path, monkeypatch):
-    acc, spec, cand = tmp_path / "a.json", tmp_path / "s.md", tmp_path / "c.json"
-    for p in (acc, spec, cand):
-        p.write_text("{}")
-    monkeypatch.setattr(audit_mod, "git_state", lambda root=None: {"head": "x" * 40, "dirty": ["devagents/x.py"],
-                                                                   "pushed": True})
+def test_audit_requires_genesis(tmp_path):
+    a = Audit(tmp_path / "audit.jsonl", anchored=False)
+    acc = tmp_path / "acceptance.json"
+    acc.write_text(json.dumps(ACC))
     with pytest.raises(AuditError):
-        Audit(tmp_path / "audit.jsonl", anchored=True).write_genesis(acc, spec, cand, "")
-    monkeypatch.setattr(audit_mod, "git_state", lambda root=None: {"head": "x" * 40, "dirty": [], "pushed": False})
-    with pytest.raises(AuditError):
-        Audit(tmp_path / "audit2.jsonl", anchored=True).write_genesis(acc, spec, cand, "")
+        a.begin_evaluation(1, "c1", acc, ACC, {}, spec_path=None)
 
 
 def test_cli_refuses_a_private_audit_for_writing_actions(tmp_path):
@@ -338,15 +357,124 @@ def test_cli_refuses_a_private_audit_for_writing_actions(tmp_path):
                                 regression_test="", decision="FAIL"))
 
 
-def test_audit_requires_genesis(tmp_path):
-    a = Audit(tmp_path / "audit.jsonl", anchored=False)
-    acc = tmp_path / "acceptance.json"
-    acc.write_text(json.dumps(ACC))
+# ------------------------------------------------------------------ the anchored trail, on a scratch git repository
+
+
+def _repo(tmp_path):
+    remote, repo = tmp_path / "remote.git", tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(remote)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True).stdout
+
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "test")
+    git("remote", "add", "origin", str(remote))
+    (repo / "data" / "gate0").mkdir(parents=True)
+    paths = (repo / "data/gate0/acceptance.json", repo / "GATE_0_SPEC.md", repo / "data/gate0/candidates_round1.json")
+    paths[0].write_text(json.dumps(ACC))
+    paths[1].write_text("spec")
+    paths[2].write_text(json.dumps({"round": 1, "instances": [FIX_A]}))
+    (repo / ".gitignore").write_text("data/gate0/audit.lock\n__pycache__/\n")
+    (repo / "code.py").write_text("x = 1\n")
+
+    def publish(msg="commit"):
+        git("add", "-A")
+        git("commit", "-q", "-m", msg)
+        git("push", "-q", "origin", "main")
+    publish("init")
+    return repo, paths, git, publish
+
+
+def test_anchored_genesis_needs_a_clean_pushed_checkout_and_is_written_once(tmp_path):
+    repo, (acc, spec, cand), git, publish = _repo(tmp_path)
+    a = Audit(repo / "data/gate0/audit.jsonl", anchored=True, root=repo)
+    (repo / "stray.py").write_text("")
+    with pytest.raises(AuditError, match="not clean"):
+        a.write_genesis(acc, spec, cand, "", instances={"FA": "d"})
+    (repo / "stray.py").unlink()
+    (repo / "code.py").write_text("x = 2\n")
+    git("commit", "-qam", "unpushed")
+    with pytest.raises(AuditError, match="push first"):
+        a.write_genesis(acc, spec, cand, "", instances={"FA": "d"})
+    git("push", "-q", "origin", "main")
+    with pytest.raises(AuditError, match="world digests"):
+        a.write_genesis(acc, spec, cand, "")
+    g = a.write_genesis(acc, spec, cand, "", instances={"FA": "d"})
+    assert len(g["payload"]["git"]["head"]) == 40 and g["payload"]["git"]["branch"] == "main"
+    publish("genesis")
+    git("rm", "-q", "data/gate0/audit.jsonl")
+    publish("delete the audit")
+    with pytest.raises(AuditError, match="audit"):
+        Audit(repo / "data/gate0/audit.jsonl", anchored=True, root=repo).write_genesis(
+            acc, spec, cand, "", instances={"FA": "d"})
+
+
+def test_anchored_evaluation_is_published_before_it_runs(tmp_path):
+    repo, (acc, spec, cand), git, publish = _repo(tmp_path)
+    a = Audit(repo / "data/gate0/audit.jsonl", anchored=True, root=repo)
+    digests, c1 = {"FA": "d"}, sha256_lf(cand)
+    a.write_genesis(acc, spec, cand, "", instances=digests)
+    with pytest.raises(AuditError, match="committed copy"):
+        a.begin_evaluation(1, c1, acc, ACC, digests, spec_path=spec)  # genesis not published
+    publish("genesis")
+    with pytest.raises(AuditError, match="digests pinned"):
+        a.begin_evaluation(1, c1, acc, ACC, {"FA": "other"}, spec_path=spec)
+    start = a.begin_evaluation(1, c1, acc, ACC, digests, spec_path=spec)
+    out = repo / "data/gate0/round1/eval1"
+
+    def confirm():
+        return a.confirm_start(1, c1, digests, out, acceptance_path=acc, spec_path=spec)
+    with pytest.raises(AuditError, match="committed copy"):
+        confirm()  # the start is not published yet
+    git("add", "data/gate0/audit.jsonl")
+    git("commit", "-q", "-m", "start")
+    with pytest.raises(AuditError, match="push first"):
+        confirm()  # committed, not pushed
+    git("push", "-q", "origin", "main")
+    assert confirm()["seq"] == start["seq"]
+    out.mkdir(parents=True)
+    with pytest.raises(AuditError, match="exists already"):
+        confirm()
+    out.rmdir()
+    git("update-index", "--skip-worktree", "code.py")
+    (repo / "code.py").write_text("x = 9\n")
+    assert any("hidden" in p for p in checkout_problems(repo))
+    with pytest.raises(AuditError, match="not clean"):
+        confirm()
+    git("update-index", "--no-skip-worktree", "code.py")
+    publish("a code change after the start")
+    with pytest.raises(AuditError, match="changed since the evaluation was started"):
+        confirm()
+
+
+def test_anchored_code_and_history_are_pinned(tmp_path):
+    repo, (acc, spec, cand), git, publish = _repo(tmp_path)
+    a = Audit(repo / "data/gate0/audit.jsonl", anchored=True, root=repo)
+    digests, c1 = {"FA": "d"}, sha256_lf(cand)
+    a.write_genesis(acc, spec, cand, "", instances=digests)
+    publish("genesis")
+    (repo / "code.py").write_text("x = 2\n")
+    publish("a code change after genesis")
+    with pytest.raises(AuditError, match="changed since genesis"):
+        a.begin_evaluation(1, c1, acc, ACC, digests, spec_path=spec)
+    (repo / "code.py").write_text("x = 1\n")
+    publish("revert")  # the net diff since genesis is empty again
+    a.begin_evaluation(1, c1, acc, ACC, digests, spec_path=spec)
+    publish("start")
+    full = a.path.read_text()
+    a.path.write_text(full.splitlines(keepends=True)[0])
+    publish("truncate the audit")
+    assert any("truncates" in p for p in a.history_problems())
     with pytest.raises(AuditError):
-        a.begin_evaluation(1, "c1", acc, ACC, {}, spec_path=None, require_clean=False)
+        a.confirm_start(1, c1, digests, repo / "o", acceptance_path=acc, spec_path=spec)
 
 
-def test_end_to_end_round_on_fixtures_is_logged_and_not_repeatable(tmp_path, monkeypatch):
+# ------------------------------------------------------------------ evaluation runs (fixtures only)
+
+
+def _small_acc(tmp_path, instances):
     acc_data = copy.deepcopy(ACC)
     acc_data["env_perturbations"] = acc_data["env_perturbations"][:1]
     acc_data["power"]["search"] = {"R_M": [6], "R_B": [4], "R_ABL": [2], "R_S": [2], "n_sim": 20}
@@ -354,21 +482,46 @@ def test_end_to_end_round_on_fixtures_is_logged_and_not_repeatable(tmp_path, mon
     acc, spec, cand = tmp_path / "acceptance.json", tmp_path / "spec.md", tmp_path / "candidates_round1.json"
     acc.write_text(json.dumps(acc_data))
     spec.write_text("spec")
-    cand.write_text(json.dumps({"round": 1, "instances": [FIX_A, FIX_B]}))
+    cand.write_text(json.dumps({"round": 1, "instances": instances}))
     a = Audit(tmp_path / "audit.jsonl", anchored=False)
     a.write_genesis(acc, spec, cand, "fixture test")
+    return a, acc, spec, cand
+
+
+def test_end_to_end_round_on_fixtures_is_logged_and_not_repeatable(tmp_path, monkeypatch):
+    a, acc, spec, cand = _small_acc(tmp_path, [FIX_A, FIX_B])
     import devagents.gate0.evaluate as ev
     monkeypatch.setattr(ev, "grid", lambda base: [base])  # one token point keeps the fixture test fast
-    res = evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "out", spec_path=spec,
-                         require_clean=False, progress=None)
+    res = evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "out", spec_path=spec, progress=None)
     assert res["decision"] in ("PASS", "FAIL", "INDETERMINATE")
     assert [e["kind"] for e in a.entries()] == ["genesis", "round_registered", "evaluation_started",
-                                                "evaluation_completed"]
+                                                "evaluation_progress", "evaluation_completed"]
     assert a.entries()[-1]["payload"]["results_sha"] == sha256_lf(tmp_path / "out" / "results.json")
     json.loads((tmp_path / "out" / "results.json").read_text())  # strict JSON (no Infinity or NaN)
     with pytest.raises(AuditError):
-        evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "o2", spec_path=spec, require_clean=False,
-                       progress=None)
+        evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "o2", spec_path=spec, progress=None)
+
+
+def test_the_followup_branch_runs_on_forced_qualifying_cells(tmp_path, monkeypatch):
+    a, acc, spec, cand = _small_acc(tmp_path, [FIX_A, FIX_B])
+    import devagents.gate0.evaluate as ev
+    import devagents.gate0.run as run_mod
+    monkeypatch.setattr(ev, "grid", lambda base: [base])
+    real = run_mod.analyze
+
+    def forced(*args, **kw):
+        out = real(*args, **kw)
+        out["criteria"]["G3_G4_qualifying"]["qualifying"] = ["FA|urgent", "FB|urgent"]
+        return out
+    monkeypatch.setattr(run_mod, "analyze", forced)
+    res = evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "out", spec_path=spec, progress=None)
+    g9 = res["criteria"]["G9_power"]
+    assert g9["power_presentation"] is not None and g9["power_deliberation"] is not None
+    f = json.loads((tmp_path / "out" / "results.json").read_text())["followup"]
+    assert set(f["deliberation"]["checkpoint_output_tokens"]) == {"250", "500", "1000", "2000", "4000"}
+    assert f["cost"]["deliberation"]["api_calls"] > f["cost"]["presentation"]["api_calls"]
+    for c in f["effects"].values():
+        assert all(n >= 2 for role in c["checkpoints"].values() for n in role.values())
 
 
 def test_a_crash_is_recorded_as_indeterminate(tmp_path, monkeypatch):
@@ -379,14 +532,32 @@ def test_a_crash_is_recorded_as_indeterminate(tmp_path, monkeypatch):
         raise RuntimeError("simulated crash")
     monkeypatch.setattr(run_mod, "run_analysis", boom)
     with pytest.raises(RuntimeError):
-        evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "o", spec_path=spec, require_clean=False,
-                       progress=None)
+        evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "o", spec_path=spec, progress=None)
     last = a.entries()[-1]
     assert last["kind"] == "evaluation_completed" and last["payload"]["decision"] == "INDETERMINATE"
+    assert last["payload"]["aborted"]
+
+
+def test_an_abort_after_a_determined_fail_records_the_fail(tmp_path, monkeypatch):
+    a, acc, spec, cand = _audit(tmp_path)
+    import devagents.gate0.run as run_mod
+
+    def fail_then_abort(instances, acc_, constants, progress=None, checkpoint=None):
+        checkpoint({"pre_power_decision": "FAIL", "criteria": {"G3_G4_qualifying": False}})
+        raise KeyboardInterrupt
+    monkeypatch.setattr(run_mod, "run_analysis", fail_then_abort)
+    with pytest.raises(KeyboardInterrupt):
+        evaluate_round(1, cand, acc_path=acc, audit=a, out_dir=tmp_path / "o", spec_path=spec, progress=None)
+    kinds = [e["kind"] for e in a.entries()]
+    assert kinds[-2:] == ["evaluation_progress", "evaluation_completed"]
+    assert a.entries()[-1]["payload"]["decision"] == "FAIL"
+    with pytest.raises(AuditError):
+        a.log_defect(1, "interrupted", "x", "")  # the FAIL stands
 
 
 def test_finite_serialization():
-    assert _finite({"a": float("-inf"), "b": [float("nan"), 1.0]}) == {"a": None, "b": [None, 1.0]}
+    assert _finite({"a": float("-inf"), "b": [float("nan"), 1.0, float("inf")]}) == {"a": "-inf",
+                                                                                    "b": ["nan", 1.0, "inf"]}
 
 
 def test_verify_reports_a_missing_genesis(tmp_path):
@@ -397,8 +568,11 @@ def test_verify_reports_a_missing_genesis(tmp_path):
 
 
 def _cells(effect: float) -> list[CellInput]:
-    return [CellInput(f"c{i}", t, "urgent", {"X": 0.6 + effect, "Y": 0.8 + effect}, {"X": 0.6, "Y": 0.8},
-                      {"X": 0.55, "Y": 0.82}, {"X": 1, "Y": 0}, {"X": 0, "Y": 0}, {"X": 0, "Y": 0}, 0.2)
+    ms = ("X", "Y")
+    return [CellInput(f"c{i}", t, "urgent", a={"X": 0.6 + effect, "Y": 0.8 + effect}, b={"X": 0.6, "Y": 0.8},
+                      d={"X": 0.55, "Y": 0.82}, r={"X": 0.6, "Y": 0.8}, a_label={"X": 1, "Y": 0},
+                      b_label={"X": 0, "Y": 0}, d_label={"X": 0, "Y": 0}, r_label={"X": 0, "Y": 0},
+                      checkpoints={role: {m: 2 for m in ms} for role in "abdr"}, ck_eta=0.1)
             for i, t in enumerate(("A", "A", "B", "B"))]
 
 
@@ -412,7 +586,23 @@ def test_power_is_high_for_a_large_effect_and_low_under_the_null():
                  "presentation", 16)
     assert null["F2"] < 0.1 and null["F1"] < 0.1 and null["F5"] < 0.1
     delib = power(_cells(0.05), alloc, {**a, "pi": 1.0}, 200, 3, "deliberation", 16)
-    assert delib["F2"] < 0.05  # checkpoints costing 0.2 swamp an effect of 0.05
+    assert delib["F2"] < 0.05  # two checkpoints costing 0.1 each swamp an effect of 0.05
+
+
+def test_the_ablation_arm_never_adapts():
+    a = {**ACC["power"]["primary"], "pi": 1.0, "q_default": 0.0, "s_ctl": 0.0}
+    cells = [CellInput(**{**c.__dict__, "b_label": {"X": 1, "Y": 0}}) for c in _cells(0.3)]
+    alloc = {"R_M": 10, "R_B": 8, "R_N": 8, "R_ABL": 6, "R_A": 1, "R_S": 2}
+    assert power(cells, alloc, a, 100, 4, "presentation", 16)["F5"] > 0.95  # ABL falls back to the router's plan
+
+
+def test_allocation_prefers_controls_only_among_powered_allocations():
+    spec = copy.deepcopy(ACC["power"])
+    spec["search"] = {"R_M": [6, 20], "R_B": [4], "R_ABL": [2], "R_S": [2, 4], "n_sim": 100}
+    alloc, tried = choose_allocation(_cells(0.05), 4, spec)
+    best = max(t["power"] for t in tried)
+    chosen = next(t for t in tried if all(t[k] == alloc[k] for k in alloc))
+    assert chosen["power"] >= spec["min_power"] or chosen["power"] == best
 
 
 def test_total_runs_counts_every_arm():

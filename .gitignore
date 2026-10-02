@@ -7,3 +7,5 @@ results/
 .env.*
 *.pem
 *.key
+# Gate-0 audit lock (transient)
+data/gate0/audit.lock
