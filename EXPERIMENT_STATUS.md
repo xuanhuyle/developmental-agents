@@ -290,8 +290,9 @@ non-provisional freeze. No `developmental` or `router` LLM output exists, and no
 
     Stage 1 `single` (0.3552) equals Experiment 0b's B-urgent `single` mean.
   - Not yet recorded here: the sha256 of `results/exp0c/stage1/stage1_decision.json`, which is local.
-- 2026-10-02, **Gate 0 (offline scientific feasibility): FAIL.** Implemented as postmortem §8 specifies
-  (EXPERIMENT_0C_POSTMORTEM_AND_NEXT_DECISION.md, f848ab4), offline and LLM-free. **Zero API calls.** No 0b/0c
+- 2026-10-02, **Gate 0 (offline scientific feasibility): FAIL.** Implemented after postmortem §8
+  (EXPERIMENT_0C_POSTMORTEM_AND_NEXT_DECISION.md, f848ab4), with the deviations declared in GATE_0_SPEC.md §6, offline
+  and LLM-free. **Zero API calls.** No 0b/0c
   specification, policy, prompt or result changed. Spec `GATE_0_SPEC.md`, report `GATE_0_REPORT.md`.
   - **Frozen before any candidate evaluation.**
     - acceptance.json v3 (sha256 `80cbe516a5cb3e7bdbd51702764be0d33c273631504978293013f3f1ac391885`), spec and
@@ -308,7 +309,8 @@ non-provisional freeze. No `developmental` or `router` LLM output exists, and no
     - **Adaptive value over the best t0 router is real but small:** 0.032–0.056 at the base point in the six urgent
       cells, 0 in relaxed cells, and ≥ δ = 0.03 at every grid point only in A1 and A2 urgent.
     - **A one-line rule per template reproduces the adaptive oracle** in every urgent cell at every grid point (within
-      0.0065 in A; exactly in B, where it is the unconditional pipeline `W:spec2+dissolve`). The one-line generic
+      0.0065 in A; exactly in B: the unconditional pipeline `W:spec2+dissolve` at 17 of 18 grid points, and a t0 one-line rule at
+      g17). The one-line generic
       workflow captures one template at every grid point. No advantage over a simple deterministic controller is
       claimed.
     - **The follow-up cannot be powered.** Treating all six urgent cells as qualified: deliberation power 0.000 (high-effort

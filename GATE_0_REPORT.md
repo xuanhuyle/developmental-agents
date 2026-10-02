@@ -32,12 +32,16 @@ organizational adaptation has measurable value over strong precommitted alternat
      At the declared checkpoint price, no effect size the runtime allows could make it pay.
    - The presentation follow-up has power 0.009 against the frozen baseline, and 0.115 against the router alone.
 
-Results 2 and 3 were forecast before any evaluation (GATE_0_SPEC.md §4; acceptance.json
-`expectation_not_a_criterion`). Round 1 confirms the design analysis rather than discovering something new.
+Result 2, and the deliberation half of result 3, were forecast before any evaluation (GATE_0_SPEC.md §4; acceptance.json
+`expectation_not_a_criterion`). The presentation follow-up's lack of power was not forecast.
 
 **What the FAIL does not say.** It does not say that this simulator cannot beat the best t0 organization: A1 and A2
-urgent beat Rt by ≥ δ everywhere. What fails is beating precommitted workflows with one decision line, and powering a
-follow-up.
+urgent beat Rt by ≥ δ everywhere. What fails is the following:
+- clearing δ in at least 2 cells of each of 2 templates over the whole grid, which fails even against the router
+  alone;
+- beating one-line precommitted workflows;
+- one of the two required G5 controls;
+- powering a follow-up.
 
 ---
 
@@ -160,17 +164,18 @@ in-flight charges stand.
 
 | criterion | result | reading (GATE_0_SPEC.md §8) |
 |---|---|---|
-| G1 integrity | **pass** (0 failures) | Reveal pairs identical before the reveal in all 5,904 plan × condition pairs. All prefix groups share one pre-reveal digest. Independently re-derived. |
+| G1 integrity | **pass** (0 failures) | Reveal pairs identical before the reveal in all 5,904 plan × condition pairs. All prefix groups share one pre-reveal digest. Independently re-derived, except the root-brief comparison, which `records.json` does not hold. |
 | G2 sanity | **pass** | — |
 | G3/G4 qualifying cells | **fail**: 0 cells (4 from 2 templates required) | The substantive negative (§4.2–4.4). |
-| G5 uneconomic division | **fail**, narrowly | D-urgent passes (margin ≥ 0.037). Only A2/urgent/Y clears δ at every grid point; 2 worlds from 2 instances are required. A1/urgent/Y misses by 0.0008 at one grid corner (g0); A3/urgent/Y by 0.005 and 0.003 at g0 and g2. A control is missing in this candidate set. |
+| G5 uneconomic division | **fail**, narrowly | D-urgent passes (minimum margin 0.0369, at g0). Only A2/urgent/Y clears δ at every grid point; 2 worlds from 2 instances are required. A1/urgent/Y misses by 0.0008 at one grid corner (g0); A3/urgent/Y by 0.005 and 0.003 at g0 and g2. A control is missing in this candidate set. |
 | G7 dead-branch release | **pass** | B2 and B3 urgent: releasing the dead unit is worth 0.060 and 0.057 at the worst grid point. |
 | G8 robustness | **fail**, vacuously | It counts only G3-qualifying cells, and there are none. It carries no information about fragility. |
 | G9 follow-up power | **fail** (not computed) | No qualifying cell. Descriptive power is in §5. |
-| G10 audit | holds | `verify` is ok. |
+| G10 audit | held for the evaluation | The code and world digests were checked when the evaluation started, and `verify` is ok on the chain and hashes. The post-hoc files added afterwards (`analysis/gate0/`) are outside the §6 list of what may change after genesis. |
 
-The decision does not hinge on any tie, and the post-hoc re-analysis of `records.json` reproduces every criterion and
-number (`analysis/gate0/posthoc_round1.json`).
+The decision does not hinge on any tie. The post-hoc re-analysis of `records.json` reproduces every criterion, every
+cell minimum and the base table (`analysis/gate0/posthoc_round1.json`). The validators' own full re-analysis
+reproduced every other number.
 
 ### 4.2 Absolute fitness at the base point
 
@@ -179,7 +184,7 @@ Each value is the mean over the reveal pair. Fitness is quality minus money and 
 | cell | blind | triage, solo | Rt (plan) | W\* | A\* (X / Y plans) | H\* |
 |---|---|---|---|---|---|---|
 | A1 urgent | 0.176 | 0.564 | 0.613 (fan2) | 0.604 | **0.656** (fan4 / solo) | 0.656 |
-| A2 urgent | 0.175 | 0.564 | 0.613 (fan2) | 0.604 | **0.665** (fan4 / solo) | 0.665 |
+| A2 urgent | 0.175 | 0.563 | 0.613 (fan2) | 0.604 | **0.665** (fan4 / solo) | 0.665 |
 | A3 urgent | 0.213 | 0.584 | 0.636 (self+1) | 0.636 | **0.669** (fan4 / solo) | 0.669 |
 | B1 urgent | 0.448 | 0.544 | 0.544 (solo) | 0.600 | **0.600** (spec2 dissolve / wait) | 0.605 |
 | B2 urgent | 0.434 | 0.522 | 0.555 (spectop1 wait) | 0.607 | **0.607** (spec2 dissolve / wait) | 0.615 |
@@ -205,7 +210,8 @@ A\* − Rt and A\* − W\* in the urgent cells (relaxed cells: 0 everywhere):
 - **At 13 of 18 grid points and under all 6 perturbations,** W\*(urgent) is the t0 switch
   `n_units ≥ 8.5 ? W:self+1 (or W:fan4) : W:spec2+dissolve`. The number of units, 14–16 in A and 2–3 in B, separates
   the templates, and the switch reproduces B exactly.
-- **At the other 5 grid points** (g9, g11, g13, g15, g17: an extra WORK step at input scale ≥ 1), it is the post-reveal
+- **At the other 5 grid points** (g9, g11, g13, g15, g17: an extra WORK step at input scale ≥ 1, apart from g7, where
+  reasoning tokens are halved), it is the post-reveal
   rule `needed_read_s ≥ 259.4 ? W:self+1 : W:solo`. That is A's oracle rule; it reproduces A within 0.003.
 
 At no grid point do cells of two templates qualify at once.
@@ -224,7 +230,7 @@ Against the router alone, the result depends on δ and on the grid's extra-step 
 ### 4.4 Where the value comes from, and the trivial-rule statement
 
 **Attribution at the base point** (`results.json` → `base.<cell>.attribution`):
-- **Template A.**
+- **Template A** (urgent cells; in relaxed cells the information is worth 0.09 and division costs 0.05).
   - Using the triage information is worth 0.37–0.39.
   - Precommitted division is worth 0.05 over solo.
   - Adapting the divide-or-not decision to the reveal is worth 0.032–0.052. Choosing the shape adds nothing.
@@ -245,7 +251,10 @@ so no advantage for developmental intelligence is claimed. The post-hoc evidence
   is, is within 0.0065 of A\* in every cell at every grid point (0 at 12 of 18).
   - With one shape fixed over the whole grid, the best rule (`needed_read_s ≥ 126.8 ? W:self+2 : W:solo`) falls short by up to 0.036, just over δ. A rule that also
     switches shape on the extra-step cost stays within δ.
-- **Template B, urgent.** The unconditional pipeline `W:spec2+dissolve` equals A\* exactly.
+- **Template B, urgent.**
+  - At 17 of 18 grid points, the unconditional pipeline `W:spec2+dissolve` equals A\* exactly.
+  - At g17, A\* in B1 is `triage>solo` and the pipeline falls 0.0065 short. There, the t0 rule
+    `cand_read_s ≥ 190.7 ? W:spec2+dissolve : W:solo` equals A\*.
 - **Relaxed.** `W:solo` (A) and `W:blind` (B) equal A\*.
 
 **The frozen D1/D5 disclosure.** It reads `reproduces_oracle_within_delta: false`, and that value is vacuous: it is
@@ -281,8 +290,10 @@ favourable.
 | power at the grid-minimum effects | 0.000 | 0.039 | 0.000 |
 | API calls / list-price $ / sequential hours | 2,152 / $36.09 / 4.8 h | 1,960 / $34.19 / 4.4 h | 1,868 / $50.07 / 8.4 h (frozen); 1,772 / $49.12 / 8.2 h (Rt only) |
 
-The cost figures charge the oracle's plan and its mean checkpoints to every M, ABL and control run. They are upper
-bounds: under the model's own failure assumptions the expected deliberation cost is about $42 and 6.9 h.
+**The cost figures are upper bounds.**
+- Every M run is charged the oracle plan's tokens; ABL and control runs are charged the default plan's.
+- Under deliberation, every M, ABL and control run is also charged the oracle plans' mean of 4 checkpoints.
+- Under the model's own assumptions, the expected deliberation cost is about $42 and 6.9 h.
 
 **Why each mechanism fails.**
 - **Presentation.** M − B averages only 0.016 against Rt, and below 0 against the frozen baseline. A non-adapting run
@@ -293,12 +304,13 @@ bounds: under the model's own failure assumptions the expected deliberation cost
 - **Deliberation.** A run pays one high-effort checkpoint per general event of the plan it runs: t0, the reveal, and
   each child's termination.
   - That is 2–6 checkpoints, each 0.147 fitness when urgent: 0.29–0.88 per run. Arm B pays none.
-  - For M − B to be positive in expectation, the oracle must beat the baseline by at least about 0.47 in urgent cells.
-    Power 0.80 needs about 0.65–0.70.
+  - On these cells, under the primary assumptions, M − B breaks even only if the oracle beats the baseline by about
+    0.70 in urgent cells. Power 0.80 needs about 0.9–1.0 (0.78 at 0.90 and 0.86 at 1.0, allocation re-searched).
+  - Per world, break-even is about 0.40 + 0.147·k for an oracle plan with k children.
   - The observed effects are at most 0.06, and 0.10 over the default.
   - G2 bounds what any candidate set could offer. With G2's floor of 0.3 on solo-type plans, k children can cut the
     solo plan's cost by at most a factor of k + 1. That caps the advantage at 0.7·k/(k + 1), which stays at least 0.19
-    below the requirement (about 0.40 + 0.147·k) at every k, even with free children. At the measured cost of about
+    below break-even (about 0.40 + 0.147·k) at every k, even with free children. At the measured cost of about
     0.043 per child, the cap is about 0.35–0.39.
   - So deliberation power is 0.000 at every checkpoint size from 250 to 4,000 output tokens.
 
@@ -333,10 +345,12 @@ readings; all are corrected in this report and in `posthoc_round1.py`. Its answe
    - Urgent cells: A\* beats Rt by ≥ δ with divergent signatures at the base point. At every grid point, that holds
      only in A1 and A2.
    - Relaxed cells: no adaptation is needed.
-   - What is required is one contingent switch per template, worth about a tenth of what using the triage information
-     is worth.
+   - What is required is one contingent switch per template.
+     - In A it is worth about a tenth of what using the triage information is worth (0.032–0.052 against 0.37–0.39).
+     - In B it is worth a third to a half of it (0.033–0.056 against 0.088–0.099).
 2. **Can a one-line rule solve it?** Yes.
-   - Per template: A within 0.0065, B exactly (an unconditional pipeline).
+   - Per template: A within 0.0065. B exactly: the unconditional pipeline `W:spec2+dissolve` at 17 of 18 grid points,
+     and a t0 one-line rule at g17.
    - Generic: a single line with no t0 feature still captures one template at every grid point.
    - Two lines capture both.
 3. **Is the workflow baseline weak?** No. W\* is, if anything, optimistic: it is chosen with hindsight per condition,
@@ -356,8 +370,9 @@ readings; all are corrected in this report and in `posthoc_round1.py`. Its answe
    - Catalogs and questions are identical, and only the triage source differs.
    - The root brief is not in `records.json`. It is member-invariant by construction and was checked during the run.
 7. **Is the result robust?** The FAIL is robust:
-   - G3/G4 fails under every comparator variant, pointwise at every grid point and perturbation, and the re-analysis is
-     bit-identical.
+   - G3/G4 fails under every comparator variant over the full grid, and the re-analysis is bit-identical.
+   - Pointwise, every variant that includes W\* fails at every grid point and perturbation. Against the router alone,
+     G4 would pass at 12 of 18 grid points (including the base point) and at 4 of 6 perturbations.
    - G5 is a narrow miss, G8 is vacuous, and the router-only negative depends on δ.
 8. **Does it overfit the mechanism?** By design, yes. The templates were sized analytically to give an A\* − Rt gap of
    about 0.05, and the gap observed is 0.032–0.056. Each template has one change point, at the reveal. The negative
@@ -380,9 +395,10 @@ readings; all are corrected in this report and in `posthoc_round1.py`. Its answe
 **No round 2.** The spec permits one after a round-1 FAIL. It is not registered because no round-2 candidate set could
 pass:
 - **G9 cannot pass for any candidate set that passes G2.**
-  - The deliberation half needs an oracle advantage of about 0.65 or more over the baseline in urgent cells (relaxed:
-    about 0.40). Relaxed effects were 0 throughout. In urgent cells, G2's floor caps the advantage below what is
-    needed at every child count (§5).
+  - The deliberation half needs an oracle advantage of about 0.9–1.0 over the baseline in urgent cells for power 0.80;
+    it breaks even only at about 0.70.
+  - In relaxed cells it breaks even at about 0.40, but relaxed effects were 0 throughout.
+  - In urgent cells, G2's floor caps the advantage below break-even at every child count (§5).
   - The presentation half needs about 0.10–0.15. A search of about 18,000 of the reviewers' own fixture designs (never
     candidate-derived) found at most 0.119 (SQL triage) and 0.145 (memo triage) over Rt. In every design that reached
     that level, a single W0 pipeline reproduced the oracle, so A\* − W\* = 0.
