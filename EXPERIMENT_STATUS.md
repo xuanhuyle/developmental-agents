@@ -324,3 +324,23 @@ non-provisional freeze. No `developmental` or `router` LLM output exists, and no
   - **Still not recorded:** the sha256 of `results/exp0c/stage1/stage1_decision.json`, which is local. Command, run
     in the experimenter's checkout:
     `py -c "from devagents.evals.exp0c import sha256_lf; print(sha256_lf('results/exp0c/stage1/stage1_decision.json'))"`
+- 2026-10-03, **Context-lifecycle research decision: NO-GO.** A research decision, not an experiment and not a
+  continuation of the stopped program (postmortem §10 rule 7). Document: `CONTEXT_LIFECYCLE_RESEARCH_DECISION.md`.
+  **Zero API calls.** No code, specification or result in this repository changed.
+  - **Question examined:** can a persistent agent learn through experience to organize its own finite cognition?
+  - **Decision: NO-GO.** No paid experiment is proposed or authorized.
+    - Re-entry only as a new proposal, on a substrate that first passes the zero-API gate R0 (document §9.1) on fresh
+      data, with thresholds hashed in advance.
+    - The exploratory offline analyses behind the decision were run on third-party data. Their scripts are not
+      committed.
+  - **Erratum to the Gate 0 entry above.** Commit 6d1c6e4 edited that entry in place after 59977f0 had appended it,
+    although this log is append-only. It made two wording corrections:
+    - "Implemented as postmortem §8 specifies" became "Implemented after postmortem §8 ..., with the deviations
+      declared in GATE_0_SPEC.md §6";
+    - template B's exact reproduction was qualified as "at 17 of 18 grid points, and a t0 one-line rule at g17".
+
+    The corrected text stands. It is recorded here because it should have been appended as an erratum.
+  - **Erratum to the 2026-09-29 pilot entry.** Commit b76cbcd likewise rewrote that entry in place, about 54 minutes
+    after 520947a appended it. Among other wording, it replaced "the tests grew from 80 to 94" with a review summary
+    ending "Tests grew from 80 to 100".
+  - **Stale count.** The "Implemented" section above still says 109 tests. The suite has 239.

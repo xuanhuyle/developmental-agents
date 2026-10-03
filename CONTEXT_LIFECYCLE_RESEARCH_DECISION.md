@@ -19,27 +19,35 @@ proposal under postmortem rule 7, on a substrate that first passes the zero-API 
 
 1. **The literature already covers most of the question.**
    - Learned within-episode branch, fold, compress and archive exist: Context-Folding/FoldGRPO, MemexRL and others.
-   - Learned memory CRUD exists: Memory-R1 and its successors.
+   - Learned memory CRUD exists: Memory-R1 (README; the paper was not read) and its successors (search snippets
+     only).
    - Outer-loop learned memory designs exist: ALMA, MemEvolve.
    - Prompted lifecycle tools exist: Letta.
-      - *Online, within-lifetime* learning of an organization policy is reported, by a bandit (MemCon) and by LLM
+   - *Online, within-lifetime* learning of an organization policy is reported, by a bandit (MemCon) and by LLM
      reflection (AdaMem). This rests on their abstracts; the bodies were not read (§3.10).
-   - What remains untested is a methods comparison (§3.11): LLM-mediated learning against simple learners given
-     identical feedback, with a distillation test.
-2. **The strongest null wins.** No *learned* organization beat "store everything immutably, retrieve well, add fixed
-   typed side-indexes" on any dataset that could be computed. Where structure helped, fixed or population-level
-   structure was enough. The exception is aggregation beyond the read budget, which nothing tested here closed
-   (§4.1).
-3. **On every substrate where it was measured, almost nothing is left to learn within one lifetime.** Those
-   substrates are LoCoMo, BEAM-1M/10M, the PM-Bench generator and git streams. Learning inside a lifetime adds at
-   most +0.008 over a population prior fitted on other lifetimes, and on BEAM the gain is negative. The other
-   reachable substrates were rejected for uniform or stationary demand or templated truth (§6). The large oracle
-   headroom that does exist is knowledge of future needs; on LoCoMo it was shown to be about *when*, not *whether*.
-   No feedback channel examined here reaches it (§4.2).
+   - What may remain untested is a methods comparison (§3.11): LLM-mediated learning against simple learners given
+     identical feedback, with a distillation test. This holds only if ContextEvo (known from two list snippets) and
+     the bodies of MemCon and AdaMem (abstracts only) do not already contain it.
+2. **The strongest null wins against learning within a lifetime.** No organization learned *within a lifetime* beat
+   "store everything immutably, retrieve well, add fixed typed side-indexes" on any dataset that could be computed.
+   - Where anything beat it, fixed structure, or a population-level model trained on *other* lifetimes, was enough.
+     On BEAM-1M a cross-fitted population pin classifier beat the null by +0.028 to +0.047 (95% CIs above 0).
+   - That is ordinary offline supervised learning, not learning through experience.
+   - The exception is aggregation beyond the read budget, which nothing tested here closed (§4.1).
+3. **On every substrate where it was measured, almost nothing is left to learn within one lifetime.**
+   - Those substrates are LoCoMo, BEAM-1M/10M, the PM-Bench generator and git streams. Learning inside a lifetime
+     adds at most +0.008 over a population prior fitted on other lifetimes, and on BEAM the gain is negative.
+   - The large oracle headroom that does exist is knowledge of future needs; on LoCoMo it was shown to be about
+     *when*, not *whether*. No feedback channel examined here reaches it (§4.2).
+   - The other reachable substrates were rejected in §6:
+     - uniform or stationary demand (AgingBench, LifelongAgentBench);
+     - templated truth (Memora);
+     - fixed routing solves it (PrefEval);
+     - no lifetime structure (Supersede, MQuAKE).
 4. **The alternative explanations cannot be separated at affordable scale** (§8.2). "Learning the organization"
    versus "learning the task distribution" is ill-posed for retention, because the optimal policy *is* a demand
-   model. Own-experience versus population-prior effects would need 128-1,133 lifetimes. No natural source examined here offers
-   more than 41 valid ones, and the open-ended one (git) has only 4-12 after the model cutoff. Synthetic
+   model. Own-experience versus population-prior effects would need 128-1,133 lifetimes. No natural source examined
+   here offers more than 41 valid ones, and the open-ended one (git) has only 4-12 after the model cutoff. Synthetic
    lifetimes make the designer's chosen regime the manipulation, which is Gate 0's failure.
 5. **Every conditional LLM run designed for a substrate reachable here** (E-PARK-L, BEAM-L, git) either cannot
    produce a positive, is mostly inconclusive, or is decisive only toward a predicted negative (§12.2). E1 (§9.2) can
@@ -142,16 +150,16 @@ usual paraphrase.
      order; `GATE_0_SPEC.md:382-385`);
   5. no inherited budget, and explicit user approval for any paid call.
 - **Ledger hygiene items found while reconstructing**, disclosed here and not fixed:
-    - Commit 6d1c6e4 edited the Gate 0 entry of `EXPERIMENT_STATUS.md` in place after 59977f0 had appended it, although
+  - Commit 6d1c6e4 edited the Gate 0 entry of `EXPERIMENT_STATUS.md` in place after 59977f0 had appended it, although
     that file declares itself "Append-only" (`EXPERIMENT_STATUS.md:3`). It was not the first such edit: b76cbcd
     rewrote the 2026-09-29 pilot entry about 54 minutes after 520947a appended it. Both were corrections made shortly
     after the append. They were still in-place edits, and each should have been an appended erratum. The status note
     that accompanies this document records them as errata.
   - The sha256 of `results/exp0c/stage1/stage1_decision.json` is still unrecorded
     (`EXPERIMENT_STATUS.md:292, 324-326`).
-    - `README.md` is stale: it says 100 tests and a provisional freeze (`README.md:60, 118`). The "Implemented"
+  - `README.md` is stale: it says 100 tests and a provisional freeze (`README.md:60, 118`). The "Implemented"
     section of `EXPERIMENT_STATUS.md` still says 109 tests (`EXPERIMENT_STATUS.md:37`). The suite has 239 tests.
-    - Recorded live API calls total 1,068: 80 in the Exp 0 pilot (`EXPERIMENT_STATUS.md:157`) and 988 in the 0b main
+  - Recorded live API calls total 1,068: 80 in the Exp 0 pilot (`EXPERIMENT_STATUS.md:157`) and 988 in the 0b main
     run (`EXPERIMENT_0C_DECISION.md:62`). The 0c call counts and the actual dollar spend of every live run were never
     recorded.
 
@@ -263,7 +271,8 @@ prospective memory: no question arrives to cue the retrieval.
 - *Isolation from interference.* This is FOCUS by scoped retrieval into one context.
 - *Parallel or extra capacity.* These are additional context windows and compute, which §7 charges.
 - *Prompt-cache economics.* A stable prefix per namespace. This is a pricing effect: cache reads cost $0.20/MTok
-  against $2-4/MTok uncached input for Sonnet 5.5 and Opus 5.5.
+  against $2-4/MTok uncached input for Sonnet 5.5 and Opus 5.5 [README: Anthropic API reference bundled with Claude
+  Code, cached 2026-09-25].
 - *Accumulated procedure.* This is a namespaced playbook.
 
 **Where it could be distinct.** Only in its decisions:
@@ -307,7 +316,8 @@ non-stationary demand. The first three rungs can fail cheaply:
 - Q3 positive with Q4 negative answers a weaker question: "online retention learning works, and it is ordinary
   cache or memory management". That is a legitimate and useful result, but it is not the hypothesis, and it must be
   reported as the weaker result.
-- If Q0, Q1 or Q2 kills the line, no paid call is justified.
+- If Q0 or Q2 kills the line, no paid call is justified. If Q1 fails, only the non-stationarity claim is dropped
+  (R0.7).
 - **A refinement forced by §8.2 (U1).** For D1 and D2, "learns the organization rather than the task distribution"
   is not a well-posed contrast: the optimal retention policy *is* a model of demand and of one's own reader. RQ is
   therefore tested only in its Q4 form, LLM-mediated learning against a plug-in learner with the same feedback. That
@@ -316,8 +326,8 @@ non-stationary demand. The first three rungs can fail cheaply:
 ### 2.6 What this is not
 
 - **Not content learning.** Writing better lessons into memory is ACE, Dynamic Cheatsheet, ReasoningBank and AWM
-  territory. ACE (as released) and ReasoningBank apply ADD only. Dynamic Cheatsheet and AWM regenerate their whole
-  memory with an LLM on each update, which is the failure mode ACE warns against.
+  territory. ACE (as released) and ReasoningBank apply ADD only [CODE]. Dynamic Cheatsheet and AWM regenerate their
+  whole memory with an LLM on each update [CODE], which is the failure mode ACE warns against.
 - **Not within-episode RL of context operations.** That is Context-Folding/FoldGRPO, MEM1, MemAct, MemexRL and
   AgeMem.
 - **Not outer-loop search over memory designs across fresh runs.** That is ALMA, MemEvolve and MemSkill.
@@ -533,7 +543,7 @@ branch), `letta-ai/letta-code`, `letta-ai/sleep-time-compute`.
     window;
   - Wake: time-conditioned self-resumption, i.e. PARK with a clock condition;
   - fork;
-    - a reflection prompt that names archiving to ARCHIVE.md, tier moves between core and deferred memory, and skill
+  - a reflection prompt that names archiving to ARCHIVE.md, tier moves between core and deferred memory, and skill
     extend/deprecate/split (`reflection-v2.md:47, 104-127, 166-167`).
 - Context Doctor is a user-invoked, prompted procedure that attributes behavioural failures to stale memory,
   compaction or retrieval, then repairs content. It is unevaluated.
@@ -598,7 +608,7 @@ These set the bar any LLM learner must clear.
 | Provider primitives | Server-side context editing, compaction (default trigger 150K), a memory tool, and persistent memory stores | [README: Anthropic API reference bundled with Claude Code] |
 | PBWM (computational neuroscience) | Learning *when* to gate working memory from delayed reward is established in non-LLM models | [README `leabra/PBWM.md`] |
 
-### 3.8 Lifetime-structured evidence (abstract level only)
+### 3.8 Lifetime-structured evidence (snippet level, except AgingBench code)
 
 - **Ground Truth First.** Budgeted curated memory leads at 3 weeks and loses evicted content by 9 weeks (96% → 72%):
   a "tenure crossover" [SNIPPET].
@@ -623,7 +633,7 @@ re-asked every session. Ground Truth First and "Closing the Feedback Loop" could
 | PARK / RESUME (agent-chosen condition) | — | — | — | Letta Wake (clock only), PIS | Scheduler |
 | BRANCH / FOLD | FoldGRPO, Kimi PARL (shaped) | ADAS/HGM ensembles | — | Letta fork, CLM | — |
 | SPECIALIZE / MERGE / RETIRE whole contexts | — | — | — | Letta reflection names skill split and deprecate (no merge) | Managed memory stores; EvoChamber (fixed thresholds) |
-| Learning the organization policy online within one lifetime (generic form) | — | ContextEvo? (abstract only) | **MemCon (bandit), AdaMem (LLM reflection), AEL (bandits + reflection)** [ABSTRACT; AEL CODE] | — | — |
+| Learning the organization policy online within one lifetime (generic form) | — | ContextEvo? (two list snippets only; online or offline unknown) | **MemCon (bandit), AdaMem (LLM reflection), AEL (bandits + reflection)** [ABSTRACT; AEL CODE] | — | — |
 | **… against simple learners given identical feedback, with lagged credit, under demand that inverts the best fixed policy, plus a distillation test** | — | — | **not found** | — | — |
 
 ### 3.10 Prior art found by a second, deeper search, and threats still unresolved
@@ -747,23 +757,27 @@ committed]
 |---|---|---|
 | No query at the moment of need: standing instructions, due intentions | BEAM instruction-following: probe-as-query any@200 = 0.41 (1M), 0.05 (10M) | **Yes, by fixed write-time structure.** A regex pinned store holds about 1.4K tokens per 1M chat and covers 97% of instruction sources. The PM typed store scores 0.918 against 0.56 for the raw log. |
 | Implicitly stated preferences | Pinned regex covers 70% of preference sources at 1M, 5% at 10M | **Partly.** A user-only dense index helps. Robust coverage needs a fixed LLM extractor, which is grounding, not learning. |
-| Aggregation beyond the read budget: summaries, event order, multi-session | BEAM-10M all-evidence@200: summarization 0, event ordering 0, temporal 0.15, multi-session 0.25. Even the per-probe oracle misses 32% of 10M probes | **No.** This needs read-time LLM map-reduce (about 11.6M input tokens, about $11.6 per query at Haiku 4.5 list price) or *fixed* write-time aggregates such as a timeline or running scratchpad. **This is the only genuine cell.** |
+| Aggregation beyond the read budget: summaries, event order, multi-session | BEAM-10M all-evidence@200: summarization 0, event ordering 0, temporal 0.15, multi-session 0.25. Even the per-probe oracle misses 32% of 10M probes | **No.** This needs read-time LLM map-reduce (about 11.6M input tokens, about $11.6 per query at Haiku 4.5 list price) or *fixed* write-time aggregates such as a timeline or running scratchpad. **This is the only cell that neither fixed structure nor a fixed read-time procedure closes within budget.** |
 | Stale-only retrieval | BEAM-1M: 12% of knowledge-update probes retrieve only the stale fact at k=50 | **Partly.** Chronological presentation fixes cases where both facts are retrieved. Key-based supersession works for single-valued facts and misfires on multi-valued ones. |
 | Retrospective relevance (an item's significance is learned later) | Isolated LoCoMo examples | **No.** Needs iterative read-time retrieval or re-indexing; both are fixed procedures. |
-| Non-stationary demand | **No available dataset has demand dynamics.** LoCoMo and BEAM ask their questions at the end, with a fixed type mix | **Untestable on available data.** |
+| Non-stationary demand | **None of the datasets used in §4.1 has demand dynamics.** LoCoMo and BEAM ask their questions at the end, with a fixed type mix. The git streams added later (§6) do have drifting demand, but the best fixed rule rarely changes (mean regret 0.002) | **Untestable on available data.** |
 
 **What N1 establishes:**
-1. Raw-log-only N1 is false. Where no query exists at the moment of need, write-time structure is worth 36 points of
-   Set-F1 on PM-Bench and 56-95 points of instruction-source coverage on BEAM.
-   But every gap that structure closed was closed by **fixed** structure, often regex-level. Nothing had to learn.
+1. Raw-log-only N1 is false.
+   - Where no query exists at the moment of need, write-time structure is worth 36 points of Set-F1 on PM-Bench and
+     56-95 points of instruction-source coverage on BEAM.
+   - A population pin classifier trained on other lifetimes also beat N\* on BEAM-1M (+0.028 to +0.047 at a 64K
+     budget, 95% CIs above 0), so organization learned *across* lifetimes has value there.
+   - Every gap that was closed, was closed by fixed structure (often regex-level) or by a population-level model.
+     Nothing had to learn *within* a lifetime.
 2. **Adaptive tuning of retrieval organization has almost no headroom.** Over 20 non-LLM configurations, the
    hindsight-best per-chat choice beats the single best fixed configuration by 1.6 points (BEAM-1M) and 1.1 points
    (10M). This is Gate 0's compressibility result reproduced on natural data.
 3. The one genuine residual cell, aggregation beyond the read budget, is a contest between *fixed* write-time
    aggregates and read-time map-reduce. Learned against fixed is unidentifiable there, because BEAM's demand mix is
    stationary and known in advance.
-4. **The property RQ needs, a best fixed policy that changes over the lifetime, exists in no dataset we could
-   reach.** Testing it requires building demand dynamics. That is a designer choice, and §8 treats it as the main
+4. **The property RQ needs, a best fixed policy that changes materially over the lifetime, exists in no dataset we
+   could reach.** In git streams, the change exceeds 0.01 in only 8 of 37 lifetimes, with a maximum of 0.014. Testing it requires building demand dynamics. That is a designer choice, and §8 treats it as the main
    identifiability threat.
 
 **Caveats:**
@@ -779,7 +793,8 @@ committed]
 
 **Theory: why this null is strong** [standard results; INFERENCE]
 - **Worst case.** Deterministic LRU and FIFO are k-competitive, which is optimal among deterministic online policies.
-  Randomized policies can do no better than O(log k) (Marker is 2H_k-competitive against an oblivious adversary). No
+  Randomized policies can do no better than Θ(log k): H_k is a lower bound, and Marker is 2H_k-competitive against an
+  oblivious adversary. No
   online policy, LLM or not, escapes these worst-case bounds. Any claim of LLM advantage must therefore be
   average-case, on a declared demand distribution.
 - **Decomposition.** For unit-size admit/evict decisions under demand the agent does not influence, learning-augmented
@@ -880,8 +895,9 @@ lifetime* adds over a population prior fitted on other lifetimes.
 | PM-Bench generator (synthetic, template-quarter shift) | 8 | +0.0054 (SD 0.0024); absolute room left by the clairvoyant trigger: **0.0079** | — |
 | Git commit streams (natural, visible demand, no task text given) | 37 | Cross-fitted lifetime model − population model: +0.0026 [0.000, +0.0053] | Best fixed rule: ACT-R with d = 0.8 (hit rate 0.580 at K = 16). Every learned controller with a population prior or a warm start lands within ±0.006 of it; a cold-start online learner is 0.019 below it. With the task text, retrieval wins by +0.141 |
 
-- No entry shows a within-lifetime gain above +0.008. Every point estimate is at most +0.0054, every upper bound is at
-  most +0.008 (the largest is BEAM-1M at 64K, +0.007), and the BEAM entries are negative.
+- No entry shows a within-lifetime gain above +0.008. Every point estimate is at most +0.0054, every reported upper
+  bound is at most +0.008 (the largest is BEAM-1M at 64K, +0.007), and the BEAM entries are negative. LoCoMo reports
+  pooled point differences only, and PM-Bench is bounded by its clairvoyant ceiling of 0.0079.
 - Clairvoyant headroom over the null on these substrates:
   - LoCoMo +20-29 pp (exact ILP oracle);
   - BEAM +0.15 to +0.47 (a pin set chosen with knowledge of the lifetime's probes);
@@ -896,9 +912,10 @@ lifetime* adds over a population prior fitted on other lifetimes.
 
 ### 4.3 Which null is strongest
 
-1. **N1 kills the "organization adds nothing" reading only partly.** Fixed write-time structure is worth a great deal
-   where no query exists at the moment of need. But it kills "*learned* organization adds something": every gap closed
-   was closed by fixed structure.
+1. **N1 refutes "organization adds nothing" only partly.** Fixed write-time structure is worth a great deal where no
+   query exists at the moment of need, and a population model trained on other lifetimes adds more on BEAM-1M. But it
+   refutes "organization learned *within* a lifetime adds something": every gap that was closed, was closed by fixed
+   or population-level structure.
 2. **N2 is the strongest null for RQ as revised.** On every substrate where it was measured, one of the following
    holds:
    - a population-prior learner using cheap features matches the oracle within detection limits (PM-Bench);
@@ -977,8 +994,9 @@ and has delayed effects.
 **E1 therefore tests a narrowed RQ:**
 - D1 FOCUS only, at matched active tokens;
 - against C\*, C-T2\*, L0, YOKED, SHUF-cal and COMPUTE-MATCHED (equal total compute; this is the Q5 contrast);
-- the hindsight-best fixed policy (B15) is reported as an offline bound, not used as a decision contrast. An online
-  learner can beat a hindsight-best fixed policy only under demonstrated shift (R0.7).
+- the hindsight-best fixed policy (B15) is reported as an offline bound, not used as a decision contrast. R0.6
+  already requires the learnable ceiling to exceed B15 by δ before E1 can run. Without an R0.7 pass, no claim about
+  tracking shift is made.
 
 ### 5.3 Why EOP is the right object to attack
 
@@ -1001,7 +1019,8 @@ and has delayed effects.
 1. natural, or at least third-party, data;
 2. questions or tasks arriving *during* the stream;
 3. feedback during the stream;
-4. demand or truth that shifts, so the hindsight-best fixed policy changes over the lifetime;
+4. demand or truth that shifts, so the hindsight-best fixed policy changes over the lifetime. This is needed only for
+   the non-stationarity claim (R0.7);
 5. an active budget that binds even against store-all plus retrieval.
 
 **Inspection.** Each candidate was checked in code and data where accessible [CODE/COMPUTED unless marked].
@@ -1022,7 +1041,7 @@ and has delayed effects.
 | AdaMem-Bench | Abstract only | Weekly QA feedback | Unknown | Unknown | — | **The one unread candidate that might have demand dynamics** |
 
 **Conclusion.**
-- **No reachable substrate meets all five requirements.**
+- **No reachable substrate meets requirements 1-3 and 5, and none meets requirement 4 either.**
 - Natural data has too few lifetimes. Except for git streams, it asks its questions at the end, with stationary
   demand. In git streams demand drifts, but the best fixed rule rarely changes.
 - Generated data can supply lifetimes, feedback and shift. But there the designer picks the shift, and on the most
@@ -1161,10 +1180,10 @@ substrates can never be the registered data.
 |---|---|---|---|---|
 | R0.1 | ✗ 10 lifetimes | ✗ 31 + 10 | ✗ synthetic; shift partition chosen after two others were rejected by the generator; no LICENSE | ✗ 37 < 84 (and it is the development set) |
 | R0.2 | ✗ question timing constructed; 27% of questions already revealed by earlier evidence | ✗ 14 probes per lifetime; natural feedback overlaps probe sources 3% | grey: 40 weekly reports per 40-week lifetime (< 50); overlap share not measured | ✗ visible demand |
-| R0.3 | ✗ ≤ +0.005 | ✗ ≤ 0, upper bound +0.007 | ✗ +0.0054 | ✗ upper bound 0.0053 |
+| R0.3 | — point estimates ≤ +0.005, no interval computed (killed by R0.1 and R0.5) | ✗ ≤ 0, upper bound +0.007 | ✗ +0.0054 | ✗ upper bound 0.0053 |
 | R0.4 | ✓ but timing clairvoyance only | ✓ | ✗ 0.0079 | ✓ |
 | R0.5 | ✗ null wins by 5-9 pp (r = 5) | population pins only | ✗ / not measured: no binding budget, and the typed store is part of N\* | ✓ only without task text |
-| R0.6 | — | template regex pins 0.97-1.00 on instruction probes | generic learner 0.992 vs 1.000 | ✗ ACT-R within ±0.006 of every prior or warm-start learner |
+| R0.6 | — | not measured: template regex pins reach 0.97-1.00 on instruction probes, but R0.6 counts only non-template pins | ✓ as written: hindsight one-line rule 0.943 vs a learner ceiling of about 0.99 (the 0.0079 gap to the oracle is R0.4's kill) | ✗ ACT-R within ±0.006 of every prior or warm-start learner |
 | R0.8 | — | ✗ split-half test detects a planted optimum only at about +0.10 | — | — |
 | R0.9 | ✗ minimum detectable effect 0.04-0.06 | ✗ minimum detectable effect 0.032-0.08 | ✓ about 54-57 lifetimes under R0.9's σ (generated lifetimes are unlimited) | ✗ 4-12 repositories with enough commits after the model cutoff |
 
@@ -1181,6 +1200,8 @@ than each of:
 - YOKED, its yoked twin;
 - SHUF-cal, its calibrated-shuffle twin;
 - COMPUTE-MATCHED, the same total compute spent on content-only reflection (the Q5, net-value contrast).
+
+L0 enters as a precondition (95% lower bound of L1 − L0 > 0). It is not one of the m = 5 Holm contrasts.
 
 The required margin over C\* is δ = 0.02.
 
@@ -1226,7 +1247,8 @@ written by this program.
   LLM arm gets one.
 
 **Baselines.** The §7 ladder: B0-B3, B6 (C\*, a hashed grid of ≤ 40 configurations, one chosen on validation),
-C-T2\*, B7-B11, B13 (D-T2, behaviour clone run on-policy), NOLOG and DELAY×4, and B14-B15 offline only. B4 and B5
+C-T2\*, B7-B11, B13 (D-T2, behaviour clone run on-policy), NOLOG and DELAY×4 (manipulation arms, run on 8 train
+lifetimes each and reported only), and B14-B15 offline only. B4 and B5
 are not run, because D4 and SPECIALIZE are out of scope for E1 (§2.4, §5.2).
 
 **Feedback.** Native outcomes only.
@@ -1292,7 +1314,7 @@ This means n_test = 54, 89 and 138 for σ = 0.05 (the floor under R0.9's assumed
 - *Contamination probe:* L0's score before vs after the model cutoff.
 - *Scoring:* the judge is blind to arm, and the judge and the proxy must agree within N\*.
 - *Calibration:* SHUF-cal is calibrated before any LLM run.
-- *Credit channel:* NOLOG ≤ L1 − δ/2. This is reported, not used in the decision.
+- *Credit channel:* NOLOG ≤ L1 − δ/2 on those 8 lifetimes. This is reported, not used in the decision.
 
 **Held-out evaluation.**
 - Split by hashed lifetime id:
@@ -1331,7 +1353,9 @@ SPECIALIZE or other models until replicated on a second R0 substrate.
 
 **What a negative would establish.** For this model and prompt, LLM-mediated FOCUS learning does not beat simple
 learners by δ on a substrate that passed R0, i.e. one with oracle headroom ≥ 2δ and lifetime-specific learnable room
-whose lower bound is ≥ δ/2. That closes the line for this model. It does not establish the result for other models.
+whose lower bound is ≥ δ/2. That closes the line for this model generation. Mirroring postmortem rule 6, the registered E1 may be re-run
+unchanged, once, when a new major model version is released. That re-run is report-only, and a positive permits only
+a new decision memo. A negative does not establish the result for other models.
 
 **What neither can establish:**
 - "organization rather than task distribution" (U1);
@@ -1355,15 +1379,16 @@ whose lower bound is ≥ δ/2. That closes the line for this model. It does not 
 ### 9.3 Why E1 would survive the strongest baseline, or lose cleanly
 
 The strongest baseline is the larger of N\* (store everything, retrieve, fixed side-indexes) and C\* (simple learner
-with a population prior), both chosen on validation lifetimes at matched measured tokens. On every reachable substrate
-it already wins.
+with a population prior), both chosen on validation lifetimes at matched measured tokens. On every substrate where it was
+measured (LoCoMo, BEAM-1M/10M, the PM-Bench generator, git streams), it already wins.
 
 E1 could survive it only on a substrate where R0 has shown, before any spend, all three of:
 - a ceiling above C\* of ≥ 2δ;
 - learnable room over the prior with lower bound ≥ δ/2;
 - that N\* does not dominate.
 
-Even then, L1 must beat C\*, C-T2\* (the LLM's own outcome-blind perception handed to a simple learner) and YOKED.
+Even then, L1 must beat C\*, C-T2\* (the LLM's own outcome-blind perception handed to a simple learner), YOKED,
+SHUF-cal and COMPUTE-MATCHED.
 
 E1 loses cleanly because:
 - the preconditions come first;
@@ -1418,7 +1443,8 @@ Prices are Anthropic list prices per million tokens, input/output, as cached on 
 | **E1, only if a substrate ever passes R0** | Reference case: a LoCoMo-sized lifetime (154 feedback events), the specified B = 16K active context (about 17.5K input tokens per answer call), deterministic pin execution, and policy updates every 10 feedback events. Per test lifetime at Sonnet:
 - 8 policy arms at about $5.5-5.9 each: L1, L0, YOKED, CUE-MATCHED, COMPUTE-MATCHED, SHUF-cal, the frozen-table replay for test (d), and N\*;
 - the second L1 sample, at the same rate;
-- answer calls for 6 controller arms at about $5.5 each: C\*, C-T2\*, D-T2, B0, B2, B3.
+- answer calls for 6 controller arms at about $5.5 each: C\*, C-T2\*, D-T2, B0, B2, B3. N\* in the policy-arm list
+  is the B1 arm.
 
 That is about $84 in total. Pilot, outcome-blind T2 pass, and NOLOG and DELAY×4 on 8 lifetimes each come on top. **n = 54: about $4.8K. n = 89: about $7.8K. n = 121 (σ = 0.075): about $10.5K.** Haiku about half; Opus about double; add 25% contingency. Batching the non-learning arms saves up to about a third. Larger lifetimes add ingestion cost. [COMPUTED: arithmetic only. This corrects an earlier estimate that assumed a 2K active context.] | R0 on a new substrate: 3-5 days. E1 harness: 8-12 days |
 
@@ -1451,30 +1477,37 @@ spend and no harness build are authorized. No zero-API work is needed for the de
 
 ### 12.2 Reasons
 
-1. **Nothing is learnable within a lifetime beyond a population prior** on any substrate where this was measured
-   (LoCoMo, BEAM-1M/10M, the PM-Bench generator, git streams). The gain is at most +0.008 everywhere, and negative on
-   BEAM (§4.2 table).
+1. **Almost nothing is learnable within a lifetime beyond a population prior** on any substrate where this was
+   measured (LoCoMo, BEAM-1M/10M, the PM-Bench generator, git streams). The gain is at most +0.008 everywhere. It is
+   small but positive on PM-Bench (+0.0054) and git (+0.0026), and negative on BEAM (§4.2 table).
    - The large oracle headroom that does exist (LoCoMo +20-29 pp, BEAM +0.15 to +0.47, git 0.976 against 0.580) is
      knowledge of future needs. On LoCoMo it is shown to be about *when*, not *whether*.
    - No feedback channel examined here reaches it. BEAM has 14 probes per lifetime, and its natural channel overlaps
      probe sources only 3%. In git, experience carries only the agent's own errors.
-2. **Organization against the null.** No learned organization beat "store everything, retrieve well, add fixed typed
-   side-indexes" wherever it could be computed. Three residual cells remain: aggregation beyond the read budget
-   (which nothing tested here closed), implicit preferences, and semantic cue matching. Their natural competitors are
-   *fixed* aggregates, extractors and matchers, so they are organization-vs-null questions, not learning questions.
+2. **Organization against the null.** No organization learned within a lifetime beat "store everything, retrieve
+   well, add fixed typed side-indexes" wherever it could be computed.
+   - Where anything beat it, it was fixed structure or a population-level model trained on other lifetimes (BEAM-1M:
+     +0.028 to +0.047).
+   - One genuine residual cell remains: aggregation beyond the read budget, which nothing tested here closed.
+   - Implicit preferences and semantic cue matching are only partly closed.
+   - In all three cells the natural competitors are *fixed* aggregates, extractors and matchers. They are therefore
+     organization-vs-null questions, not learning questions.
 3. **The alternative explanations cannot be separated at affordable scale** (§8.2):
    - U1 is structural;
-      - U2 needs 128-1,133 lifetimes, against at most 41 valid natural ones examined (git: 4-12 after the model
+   - U2 needs 128-1,133 lifetimes, against at most 41 valid natural ones examined (git: 4-12 after the model
      cutoff);
    - U3 means that synthetic regimes are the manipulation.
 
-      The brief for this review applies: if these cannot be separated, say so and stop.
+   The brief for this review applies: if these cannot be separated, say so and stop.
 4. **The novelty that remains is small, and nearby work predicts a null.**
-      - Generic online organization-policy learning is already reported: MemCon by bandit, AdaMem by LLM reflection.
+   - Generic online organization-policy learning is already reported: MemCon by bandit, AdaMem by LLM reflection.
      This rests on their abstracts.
    - Within-episode learned BRANCH, FOLD and ARCHIVE is published.
-      - Most nearby results favour the simple learner: language-driven bandits, the harness-evolution null, "Useful
-     Memories Become Faulty", and MemEvolve's shipped designs, which keep usage and success counters. AEL is mixed.
+   - Most nearby results favour the simple learner:
+     - language-driven bandits, the harness-evolution null and "Useful Memories Become Faulty" (abstracts only);
+     - MemEvolve's shipped designs, which keep usage and success counters [CODE].
+
+     AEL is mixed [CODE; ABSTRACT].
 5. **Value of information.** Every conditional LLM run designed in this session for a reachable substrate is one of
    three kinds:
    - *can only fail:* E-PARK-L, where the headroom of 0.0079 is below δ;
@@ -1490,8 +1523,8 @@ spend and no harness build are authorized. No zero-API work is needed for the de
 - the PM-Bench gate;
 - the git gate.
 
-Reading the full texts of ContextEvo, MemCon and AdaMem can only shrink the novelty further. It cannot create headroom
-on a substrate. "Don't Lose the Thread" turned out to be CORAL, a within-episode method withdrawn from ICLR 2026. The
+Reading the full texts of ContextEvo, MemCon and AdaMem could move the novelty assessment either way. It cannot
+create headroom on a substrate, and the NO-GO rests on headroom. "Don't Lose the Thread" turned out to be CORAL, a within-episode method withdrawn from ICLR 2026. The
 reading is still recommended, as half a day of work, before anyone cites this decision externally.
 
 ### 12.3 What would reopen the line, and what would kill it again
@@ -1501,7 +1534,7 @@ reading is still recommended, as half a day of work, before anyone cites this de
 - **The one regime not tested** is real long-term deployment logs with all three of:
   - hidden demand that recurs by theme and changes over time;
   - dense implicit feedback;
-    - at least 84 lifetimes (R0.1).
+  - at least 84 lifetimes (R0.1).
 
   No such data was reachable, and building it synthetically repeats Gate 0.
 
@@ -1516,11 +1549,12 @@ reading is still recommended, as half a day of work, before anyone cites this de
 - **K7:** the gate is insensitive (R0.8).
 - **K8:** Stage 1 T3 − T2 need-AUC < 0.02, or the recomputed n exceeds the available lifetimes.
 - **K9, after E1:**
-    - a failed precondition or a negative result closes the line for that model;
+  - a failed precondition or a negative result closes the line for the current model generation. The only exception
+    is the single unchanged, report-only re-run on a new major model version (§9.2);
   - a positive that (a) or (d) reproduces is downgraded to "not experiential organization learning";
   - a positive that (b) or (c) reproduces is downgraded to "perception" or "sample-efficient learner";
   - any surviving positive needs a second R0 substrate.
-- **K10, novelty:** if ContextEvo or MemCon already compares LLM-mediated organization learning against simple
+- **K10, novelty:** if ContextEvo, MemCon or AdaMem already compares LLM-mediated organization learning against simple
   learners given the same feedback, the comparison is no longer a contribution either.
 
 ### 12.4 What this decision does not say
@@ -1530,8 +1564,9 @@ reading is still recommended, as half a day of work, before anyone cites this de
   (§4.1).
 - **It does not say that LLMs cannot organize context.** Learned within-episode folding works (§3.1).
 - **It does not say that adaptive organization is impossible** (§1.2 h). The claim is narrower: on every substrate
-  where it was measured, *learning through experience* has nothing to learn that a population prior, a counter or a
-  fixed rule does not already capture, and the contrasts that would show otherwise are below detection.
+  where it was measured, *learning through experience* adds at most +0.008 over what a population prior, a counter
+  or a fixed rule already captures, and the contrasts that would show more are below detection. Organization learned
+  *across* lifetimes, i.e. a population model, did add value on BEAM-1M.
 - **What was measured, and what was only scoped out.**
   - The evidence covers D1 keep/evict/pin and learned matching of user-given PARK conditions.
   - SPECIALIZE, MERGE, whole-context RETIRE, persistent BRANCH, agent-chosen PARK, and COMPRESS on a substrate that
@@ -1577,11 +1612,13 @@ fixes they required are incorporated.
   `sleep-time-compute` (code only);
 - MemRL, MemexRL, MemEvolve, ALMA, MemSkill, Mem-α, AgingBench, Supersede, MemoryAgentBench, CLM, the Complexity
   Trap, DGM, HGM, ADAS, Gödel Agent, SICA, AEL, EvoChamber;
-- Kimi K2.5 report PDF; Evo-Memory and MemAct PDFs.
+- Kimi K2.5 report PDF; Evo-Memory and MemAct PDFs;
+- `dynamic-cheatsheet`, `reasoning-bank` and `agent-workflow-memory` (code).
 
 **Abstract, snippet or list level only:**
 - ContextEvo, MemCon, AdaMem, AdaCoM, CORAL ("Don't Lose the Thread"), Auto-Dreamer, Memory Worth, TraceRetain,
-    "Closing the Feedback Loop", Ground Truth First, PIS, BudgetPM, Memory-R1/R2, Mem-T, MemBuilder;
+  "Closing the Feedback Loop", Ground Truth First, PIS, BudgetPM, Memory-R1/R2, Mem-T, MemBuilder, MEM1, AgeMem,
+  AgentFold, MemPO, MMPO;
 - the paper bodies of PM-Bench, ACE and Memory-R1. Memory-R1 has released no official code; a third-party
   re-implementation was read.
 
